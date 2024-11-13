@@ -19,12 +19,23 @@ class CarModel(QGraphicsItem):
         super().__init__()
         self.length = 50  # Length of the car base (in pixels)
         self.width = 20  # Width of the car (in pixels)
+
+        self.trailer_len = 60  # Length of the trailer
+        self.trailer_width = 10  # Length of the trailer
+        self.trailer_theta = 0.
+
+        self.trailer_rect = QRectF(
+            -self.trailer_len,
+            -self.trailer_width / 2.,
+            self.trailer_len,
+            self.trailer_width)
+
         # Rectangle for the car body
-        self.body_rect = QRectF(0., int(-self.width / 2),
-                                self.length, self.width)
+        self.body_rect = QRectF(
+            0., int(-self.width / 2), self.length, self.width)
         self.speed = 20  # Car speed (pixels per second)
         self.steering_angle = 0.  # Initial steering angle (in radians)
-        self.state = np.array([0., 10., 0.])  # Initial state: [x, y, theta]
+        self.state = np.array([0., 0., 0., -self.trailer_len, 0., 0.])  # Initial state: [x, y, theta]
         self.last_time = None  # Last timestamp for time delta calculation
         self.wheel_len = 10.  # Length of the wheels (in pixels)
         self.wheel_width = 5.  # Width of the wheels (in pixels)
@@ -39,24 +50,16 @@ class CarModel(QGraphicsItem):
 
         # Boundaries for the car movement
         self.bounds = QRectF(
-            -self.wheel_len / 2.,
-            -(self.width * 2) / 2,
-            self.length + self.wheel_len * 2,
-            self.width * 2
-        )
+            -100,
+            -100,
+            200,
+            200)
 
         self.mpc = MPCController(
             v=self.speed,
-            L=self.length
+            l_1=self.length,
+            l_2=self.trailer_len
         )  # Initialize MPC controller with speed and car length
-
-    def step(self, delta):
-        # Calculates the next state based on current speed and steering angle
-        dx = self.speed * np.cos(self.state[2])
-        dy = self.speed * np.sin(self.state[2])
-        # Change in orientation based on steering
-        d_theta = (self.speed / self.length) * np.tan(delta)
-        return np.array([dx, dy, d_theta])
 
     def move(self):
         # Moves the car by updating its position and orientation
@@ -77,8 +80,17 @@ class CarModel(QGraphicsItem):
                     self.steering_angle = res[0]
                 except ValueError as e:
                     LOG.error(e)  # Log error if optimization fails
-            self.state += self.step(self.steering_angle) * \
-                dt  # Update car state
+
+            # self.steering_angle = math.radians(-20)
+
+            # Update car state
+            self.state += self.mpc.trailer_model(
+                self.state,
+                self.speed,
+                self.steering_angle,
+                self.length,
+                self.trailer_len,
+                0) * dt
 
         self.last_time = time.time()
         self.setPos(self.state[0], self.state[1])  # Update car position
@@ -119,6 +131,15 @@ class CarModel(QGraphicsItem):
         painter.rotate(math.degrees(self.steering_angle))
         painter.drawRect(self.wheel_rect)
         painter.restore()
+
+        painter.save()
+        # Rotate the wheels based on the steering angle
+        trailer_theta = math.degrees(self.state[2] - self.state[5])
+        painter.rotate(-trailer_theta)
+        painter.drawRect(self.trailer_rect)
+        painter.restore()
+
+
 
 
 A = (-2000, 50)  # Start point of the path
