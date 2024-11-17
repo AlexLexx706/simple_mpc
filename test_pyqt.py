@@ -5,15 +5,21 @@ import time
 from PyQt5.QtCore import Qt, QPointF, QRectF, QTimer
 from PyQt5.QtGui import QPainter, QColor, QPen
 from PyQt5.QtWidgets import QApplication, QGraphicsScene, QGraphicsView, QGraphicsItem, QGraphicsLineItem
-from mpc import MPCController
+import mpc
 import logging
+import mpc_casadi
 
 LOG = logging.getLogger(__name__)
 
 
+A = (-2000, 0)  # Start point of the path
+B = (2000, 500)  # End point of the path
+
+
 class CarModel(QGraphicsItem):
     PERIOD = 10.  # Time period for steering change
-    MAX_ANGLE = math.radians(20.)  # Maximum steering angle in radians
+    MAX_ANGLE = math.radians(25.)  # Maximum steering angle in radians
+    MAX_RATE = math.radians(60)  # Maximum steering angle in radians
 
     def __init__(self):
         super().__init__()
@@ -33,9 +39,10 @@ class CarModel(QGraphicsItem):
         # Rectangle for the car body
         self.body_rect = QRectF(
             0., int(-self.width / 2), self.length, self.width)
-        self.speed = 20  # Car speed (pixels per second)
+        self.speed = 40  # Car speed (pixels per second)
         self.steering_angle = 0.  # Initial steering angle (in radians)
-        self.state = np.array([0., 0., 0., -self.trailer_len, 0., 0.])  # Initial state: [x, y, theta]
+        # Initial state: [x, y, theta]
+        self.state = np.array([0., 0., 0., -self.trailer_len, 0., 0.])
         self.last_time = None  # Last timestamp for time delta calculation
         self.wheel_len = 10.  # Length of the wheels (in pixels)
         self.wheel_width = 5.  # Width of the wheels (in pixels)
@@ -55,11 +62,13 @@ class CarModel(QGraphicsItem):
             200,
             200)
 
-        self.mpc = MPCController(
-            v=self.speed,
-            l_1=self.length,
-            l_2=self.trailer_len
-        )  # Initialize MPC controller with speed and car length
+        # self.mpc = mpc.MPCController(
+        #     v=self.speed,
+        #     l_1=self.length,
+        #     l_2=self.trailer_len
+        # )  # Initialize MPC controller with speed and car length
+
+        self.mpc = mpc_casadi.Mpc()
 
     def move(self):
         # Moves the car by updating its position and orientation
@@ -72,19 +81,30 @@ class CarModel(QGraphicsItem):
                     time.time() / self.PERIOD * 2 * math.pi) * self.MAX_ANGLE
             else:
                 # Use the MPC controller to optimize steering angles
-                self.mpc.set_initial_state(self.state)
-                self.mpc.set_initial_deltas(self.steering_angle)
+                # self.mpc.set_initial_state(self.state)
+                # self.mpc.set_initial_deltas(self.steering_angle)
                 try:
-                    res = self.mpc.optimize_controls()  # Get optimized control actions from MPC
+                    # res = self.mpc.optimize_controls()  # Get optimized control actions from MPC
+                    self.steering_angle = self.mpc.optimize_controls(
+                        A,
+                        B,
+                        self.state[:3],
+                        self.steering_angle,
+                        self.speed,
+                        self.length,
+                        self.MAX_RATE,
+                        self.MAX_ANGLE)
+                    # Get optimized control actions from MPC
+
                     # Update the steering angle based on optimization result
-                    self.steering_angle = res[0]
+                    # self.steering_angle = res[0]
                 except ValueError as e:
                     LOG.error(e)  # Log error if optimization fails
 
             # self.steering_angle = math.radians(-20)
 
             # Update car state
-            self.state += self.mpc.trailer_model(
+            self.state += mpc.MPCController.trailer_model(
                 self.state,
                 self.speed,
                 self.steering_angle,
@@ -140,12 +160,6 @@ class CarModel(QGraphicsItem):
         painter.restore()
 
 
-
-
-A = (-2000, 50)  # Start point of the path
-B = (100, -550)  # End point of the path
-
-
 class GridScene(QGraphicsScene):
     def __init__(self):
         super().__init__()
@@ -160,12 +174,12 @@ class GridScene(QGraphicsScene):
         self.black_line.setPen(QPen(QColor(0, 0, 0), 2))
         self.addItem(self.black_line)
         # Set the path for the MPC controller
-        self.car.mpc.set_path_parameters(A, B)
+        # self.car.mpc.set_path_parameters(A, B)
 
         # Timer to periodically update car movement
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.updateCar)
-        self.timer.start(1000 // 20)  # 20 FPS
+        self.timer.start(1000 // 10)  # 20 FPS
 
     def updateCar(self):
         self.car.move()  # Move the car based on optimized steering angles
