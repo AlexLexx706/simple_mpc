@@ -7,28 +7,19 @@ class Mpc:
     def __init__(self, dt=0.1, steps=10, xtrack_weight=1., heading_weight=150., max_iter=50):
         opti = ca.Opti()
         self.dt = dt
-        # Variables
-        x = opti.variable(steps + 1)
-        y = opti.variable(steps + 1)
-        heading = opti.variable(steps + 1)
+        # state: x,y,heading:
+        states = opti.variable(steps + 1, 3)
 
         # N + 1 control angle:
         angle = opti.variable(steps + 1)
 
         # Parameters:
         # line description
-        a_x = opti.parameter()
-        a_y = opti.parameter()
-
-        b_x = opti.parameter()
-        b_y = opti.parameter()
+        a = opti.parameter(2)
+        b = opti.parameter(2)
 
         # initial values
-        x_0 = opti.parameter()
-        y_0 = opti.parameter()
-
-        heading_0 = opti.parameter()
-
+        state_0 = opti.parameter(3)
         angle_0 = opti.parameter()
         speed = opti.parameter()
         wheel_base = opti.parameter()
@@ -36,27 +27,27 @@ class Mpc:
         max_angle = opti.parameter()
 
         # calculation of line heading
-        line_heading = ca.atan2(b_y - a_y, b_x - a_x)
+        ba = b - a
+        line_heading = ca.atan2(ba[1], ba[0])
 
         common_cost = 0
         xtrack = self.create_xtrack_fun()
 
         # common cost:
         for i in range(steps):
-            common_cost += xtrack_weight * xtrack(
-                ca.vertcat(a_x, a_y),
-                ca.vertcat(b_x, b_y),
-                ca.vertcat(x[i], y[i]),) ** 2
-
-            common_cost += heading_weight * (heading[i] - line_heading) ** 2
+            pos = states[i, :2].T
+            common_cost += xtrack_weight * xtrack(a, b, pos) ** 2
+            common_cost += heading_weight * (states[i, 2] - line_heading) ** 2
         opti.minimize(common_cost)
 
         # constrains:
         for i in range(steps):
-            opti.subject_to(x[i + 1] == x[i] + dt * speed * ca.cos(heading[i]))
-            opti.subject_to(y[i + 1] == y[i] + dt * speed * ca.sin(heading[i]))
-            opti.subject_to(heading[i + 1] == heading[i] +
-                            dt * speed * ca.tan(angle[i]) / wheel_base)
+            ds = ca.horzcat(
+                speed * ca.cos(states[i, 2]),
+                speed * ca.sin(states[i, 2]),
+                speed * ca.tan(angle[i]) / wheel_base)
+
+            opti.subject_to(states[i + 1, :] == states[i, :] + ds * dt)
 
             # limits:
             opti.subject_to(
@@ -64,9 +55,7 @@ class Mpc:
             opti.subject_to(opti.bounded(-max_angle, angle[i], max_angle))
 
         # initial constrain:
-        opti.subject_to(x[0] == x_0)
-        opti.subject_to(y[0] == y_0)
-        opti.subject_to(heading[0] == heading_0)
+        opti.subject_to(states[0, :] == state_0.T)
         opti.subject_to(angle[0] == angle_0)
 
         opti.solver(
@@ -80,9 +69,8 @@ class Mpc:
 
         self.mpc_fun = opti.to_function(
             'MPC',
-            [a_x, a_y, b_x, b_y, x_0, y_0, heading_0, angle_0,
-                speed, wheel_base, max_rate, max_angle],
-            [x, y, heading, angle])
+            [a, b, state_0, angle_0, speed, wheel_base, max_rate, max_angle],
+            [states, angle])
 
     def optimize_controls(
             self,
@@ -110,15 +98,15 @@ class Mpc:
             _type_: _description_
         """
         solution = self.mpc_fun(
-            a[0], a[1],
-            b[0], b[1],
-            state_0[0], state_0[1], state_0[2],
+            a,
+            b,
+            state_0,
             angle_0,
             speed,
             wheel_base,
             max_rate,
             max_angle)
-        return float(solution[3][1])
+        return float(solution[1][1])
 
     @staticmethod
     def create_xtrack_fun() -> ca.Function:
