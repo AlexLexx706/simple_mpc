@@ -1,55 +1,89 @@
-import casadi as ca
 from typing import Tuple
 import math
+import casadi as ca
 
 
 class Mpc:
-    def __init__(self, dt=0.1, steps=10, xtrack_weight=1., heading_weight=150., max_iter=50):
+    def __init__(
+            self,
+            dt: float = 0.3,
+            steps: int = 10,
+            xtrack_weight: float = 1.,
+            heading_weight: float = 20.,
+            max_iter: int = 50,
+            trailer_length: float = 5.,
+            trailer_offset: float = 0.,
+            trailer_point: Tuple[float, float] = [0., 2.]):
+        """MPC for controlling trailer points
+
+        Args:
+            dt (float, optional): integration step, s. Defaults to 0.5.
+            steps (int, optional): number of steps - horizon prediction. Defaults to 10.
+            xtrack_weight (float, optional): weight of xtrack in control low. Defaults to 1..
+            heading_weight (float, optional): weight of heading error in control low. Defaults to 150..
+            max_iter (int, optional): limit of max iterations for solver. Defaults to 50.
+            trailer_length (float, optional): length of trailer, m. Defaults to 5..
+            trailer_offset (float, optional): offset of the trailer coupling, m. Defaults to 0..
+            trailer_point Tuple[float, float]: control point in trailer coordinates, m. Defaults: [0., 0.]
+        """
         opti = ca.Opti()
         self.dt = dt
-        # state: x,y,heading:
-        states = opti.variable(steps + 1, 3)
+        # state: x, y, heading, trailer_heading:
+        states = opti.variable(steps + 1, 4)
 
         # N + 1 control angle:
         angle = opti.variable(steps + 1)
 
         # Parameters:
-        # line description
+
+        # AB line:
         a = opti.parameter(2)
         b = opti.parameter(2)
 
-        # initial values
-        state_0 = opti.parameter(3)
+        # initial values:
+        state_0 = opti.parameter(4)
         angle_0 = opti.parameter()
         speed = opti.parameter()
         wheel_base = opti.parameter()
         max_rate = opti.parameter()
         max_angle = opti.parameter()
 
-        # calculation of line heading
+        # calculation of line heading:
         ba = b - a
         line_heading = ca.atan2(ba[1], ba[0])
 
         common_cost = 0
         xtrack = self.create_xtrack_fun()
 
-        # common cost:
+        # cost-function:
         for i in range(steps):
             pos = states[i, :2].T
-            common_cost += xtrack_weight * xtrack(a, b, pos) ** 2
-            common_cost += heading_weight * (states[i, 2] - line_heading) ** 2
+            control_point_offset = ca.vertcat(
+                ca.cos(states[i, 3]) * trailer_point[0] -
+                ca.sin(states[i, 3]) * trailer_point[1],
+                ca.sin(states[i, 3]) * trailer_point[0] +
+                ca.cos(states[i, 3]) * trailer_point[1],
+            )
+            trailer_pos = ca.vertcat(
+                pos[0] - ca.cos(states[i, 2]) * trailer_offset - ca.cos(states[i, 3]) * trailer_length,
+                pos[1] - ca.sin(states[i, 2]) * trailer_offset - ca.sin(states[i, 3]) * trailer_length)
+
+            common_cost += xtrack_weight * xtrack(a, b, trailer_pos + control_point_offset) ** 2
+            common_cost += heading_weight * (states[i, 3] - line_heading) ** 2
         opti.minimize(common_cost)
 
-        # constrains:
+        # model constrains:
         for i in range(steps):
+            # kinematic model:
+            dh = states[i, 2] - states[i, 3]
             ds = ca.horzcat(
                 speed * ca.cos(states[i, 2]),
                 speed * ca.sin(states[i, 2]),
-                speed * ca.tan(angle[i]) / wheel_base)
-
+                speed * ca.tan(angle[i]) / wheel_base,
+                speed / trailer_length * (ca.sin(dh) - trailer_offset * ca.cos(dh) * ca.tan(angle[i]) / wheel_base))
             opti.subject_to(states[i + 1, :] == states[i, :] + ds * dt)
 
-            # limits:
+            # dynamic limits:
             opti.subject_to(
                 opti.bounded(-max_rate, (angle[i + 1] - angle[i]) / dt, max_rate))
             opti.subject_to(opti.bounded(-max_angle, angle[i], max_angle))
@@ -76,26 +110,26 @@ class Mpc:
             self,
             a: Tuple[float, float],
             b: Tuple[float, float],
-            state_0: Tuple[float, float, float],
+            state_0: Tuple[float, float, float, float],
             angle_0: float,
             speed: float,
             wheel_base: float,
             max_rate: float,
-            max_angle: float):
+            max_angle: float) -> float:
         """_summary_
 
         Args:
             a (Tuple[float, float]): A point of line
             b (Tuple[float, float]): B point of line
-            state_0 (Tuple[float, float, float]): initial state: [x, y, heading]
-            angle_0 (float): initial steering angle
-            speed (float): speedwheel_base
-            wheel_base (float): wheel_base len of vehicle
-            max_rate (float): max rate of steering wheelwheel_base
-            max_angle (float): max angle of steering wheel
+            state_0 (Tuple[float, float, float, float]): initial state: [x, y, heading, trailer_heading]
+            angle_0 (float): initial steering angle, rad
+            speed (float): speed, m
+            wheel_base (float): wheel_base len of vehicle, m
+            max_rate (float): max rate of steering wheel, rad/s
+            max_angle (float): max angle of steering wheel, rad
 
         Returns:
-            _type_: _description_
+            float: steering angle
         """
         solution = self.mpc_fun(
             a,
@@ -129,12 +163,11 @@ class Mpc:
 
 
 if __name__ == "__main__":
-    import math
     mpc = Mpc()
 
     A = [0., 0.]
     B = [100., 0.]
-    STATE_0 = [0., 10, 0.]
+    STATE_0 = [0., 10, 0., 0.]
     ANGLE_0 = 0.
     SPEED = 1.
     WHEEL_BASE = 3

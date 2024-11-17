@@ -31,7 +31,7 @@ class MPCController:
         self.delta_max_change = delta_max_change
         # Maximum rate of change for steering angle per second (radians)
         self.max_delta_rate = max_delta_rate
-        # Initial state [x, y, theta]
+        # Initial state [x, y, heading, trailer_heading, trailer_x, trailer_y]
         self.initial_state = np.array([0, 0, 0, -self.l_2, 0, 0])
         self.line_point1 = np.array([0, 0])  # First point of the path line
         self.line_point2 = np.array([1, 1])  # Second point of the path line
@@ -140,21 +140,22 @@ class MPCController:
 
         # Extract current state values
         psi_1 = state[2]
-        psi_2 = state[5]
+        psi_2 = state[3]
 
         # process model
         gamma_1 = psi_1 - psi_2
         psi_dot_1 = v_1 * np.tan(delta) / l_1
-        v_2 = v_1 * np.cos(gamma_1) - psi_dot_1 * l_1c * np.sin(gamma_1)
-        psi_dot_2 = (v_1 * np.sin(gamma_1) + psi_dot_1 * l_1c * np.cos(gamma_1)) / l_2
+
+        psi_dot_2 = v_1 / l_2 * (np.sin(gamma_1) + l_1c * np.cos(gamma_1) * np.tan(delta) / l_1)
+        v_2 = v_1 * (np.cos(gamma_1) + l_1c * np.sin(gamma_1) * np.tan(delta) / l_1)
 
         return np.array([
             v_1 * np.cos(psi_1),
             v_1 * np.sin(psi_1),
             psi_dot_1,
+            psi_dot_2,
             v_2 * np.cos(psi_2),
-            v_2 * np.sin(psi_2),
-            psi_dot_2])
+            v_2 * np.sin(psi_2)])
 
     def predict_trajectory(self, state, deltas):
         # Predict the vehicle's trajectory over the prediction horizon

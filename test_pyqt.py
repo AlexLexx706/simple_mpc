@@ -12,23 +12,40 @@ import mpc_casadi
 LOG = logging.getLogger(__name__)
 
 
-A = (-2000, 0)  # Start point of the path
-B = (2000, 500)  # End point of the path
+A = (-2000, -100)  # Start point of the path
+B = (2000, 50)  # End point of the path
 
 
 class CarModel(QGraphicsItem):
     PERIOD = 10.  # Time period for steering change
     MAX_ANGLE = math.radians(25.)  # Maximum steering angle in radians
-    MAX_RATE = math.radians(60)  # Maximum steering angle in radians
+    MAX_RATE = math.radians(30)  # Maximum steering angle in radians
+
+    LINE_PEN = QPen(QColor(0, 0, 0), 2)
+    LINE_PEN.setCosmetic(True)
+
+    BODY_COLOR = QColor(0, 0, 255)  # Blue color for the car body
+    WHEEL_COLOR = QColor(255, 0, 0)
+
+    CONTROL_POINT_PEN = QPen(QColor(0, 0, 255), 10)
+    CONTROL_POINT_PEN.setCosmetic(True)
+    CONTROL_POINT_PEN.setCapStyle(Qt.PenCapStyle.RoundCap)
 
     def __init__(self):
         super().__init__()
-        self.length = 50  # Length of the car base (in pixels)
-        self.width = 20  # Width of the car (in pixels)
+        self.length = 3  # Length of the car base, m
+        self.width = 2  # Width of the car, m
+        self.speed = -5.  # Car speed m/s
+        self.steering_angle = 0.  # Initial steering angle (in radians)
+        self.trailer_len = 5  # Length of the trailer, m
+        self.trailer_point = [0., 3.]  # Length of the trailer, m
 
-        self.trailer_len = 60  # Length of the trailer
-        self.trailer_width = 10  # Length of the trailer
-        self.trailer_theta = 0.
+        # Initial state: [x, y, heading, trailer_heading, trailer_x, trailer_y]
+        self.state = np.array([0., 0., 0., 0., -self.trailer_len, 0.])
+
+        self.trailer_width = 2.  # Length of the trailer, m
+        self.wheel_len = 1.  # Length of the wheels, m
+        self.wheel_width = 0.3  # Width of the wheels, m
 
         self.trailer_rect = QRectF(
             -self.trailer_len,
@@ -39,13 +56,8 @@ class CarModel(QGraphicsItem):
         # Rectangle for the car body
         self.body_rect = QRectF(
             0., int(-self.width / 2), self.length, self.width)
-        self.speed = 40  # Car speed (pixels per second)
-        self.steering_angle = 0.  # Initial steering angle (in radians)
-        # Initial state: [x, y, theta]
-        self.state = np.array([0., 0., 0., -self.trailer_len, 0., 0.])
+
         self.last_time = None  # Last timestamp for time delta calculation
-        self.wheel_len = 10.  # Length of the wheels (in pixels)
-        self.wheel_width = 5.  # Width of the wheels (in pixels)
 
         # Rectangles for the car wheels
         self.wheel_rect = QRectF(
@@ -62,46 +74,33 @@ class CarModel(QGraphicsItem):
             200,
             200)
 
-        # self.mpc = mpc.MPCController(
-        #     v=self.speed,
-        #     l_1=self.length,
-        #     l_2=self.trailer_len
-        # )  # Initialize MPC controller with speed and car length
-
-        self.mpc = mpc_casadi.Mpc()
+        # MPC controller
+        self.mpc = mpc_casadi.Mpc(
+            trailer_length=self.trailer_len,
+            trailer_point=self.trailer_point)
 
     def move(self):
         # Moves the car by updating its position and orientation
         cur_time = time.time()
         if self.last_time:
             dt = cur_time - self.last_time  # Calculate time delta
-            # Choose whether to use a sinusoidal steering change or MPC-based steering
-            if 0:  # Example for sinusoidal steering (disabled by setting to 0)
+            if 0:
+                # Example for sinusoidal steering (disabled by setting to 0)
                 self.steering_angle = math.sin(
                     time.time() / self.PERIOD * 2 * math.pi) * self.MAX_ANGLE
             else:
-                # Use the MPC controller to optimize steering angles
-                # self.mpc.set_initial_state(self.state)
-                # self.mpc.set_initial_deltas(self.steering_angle)
                 try:
-                    # res = self.mpc.optimize_controls()  # Get optimized control actions from MPC
                     self.steering_angle = self.mpc.optimize_controls(
                         A,
                         B,
-                        self.state[:3],
+                        self.state[:4],
                         self.steering_angle,
                         self.speed,
                         self.length,
                         self.MAX_RATE,
                         self.MAX_ANGLE)
-                    # Get optimized control actions from MPC
-
-                    # Update the steering angle based on optimization result
-                    # self.steering_angle = res[0]
                 except ValueError as e:
                     LOG.error(e)  # Log error if optimization fails
-
-            # self.steering_angle = math.radians(-20)
 
             # Update car state
             self.state += mpc.MPCController.trailer_model(
@@ -123,55 +122,71 @@ class CarModel(QGraphicsItem):
 
     def paint(self, painter, option, widget):
         # Paint the car model (body and wheels) using QPainter
-        painter.setBrush(QColor(0, 0, 255))  # Blue color for the car body
+        painter.setPen(self.LINE_PEN)
+        painter.setBrush(self.BODY_COLOR)
         painter.drawRect(self.body_rect)
 
-        # Draw the front wheels
-        painter.setBrush(QColor(255, 0, 0))  # Red color for wheels
+        # Draw the left rear wheels
+        painter.setBrush(self.WHEEL_COLOR)  # Red color for wheels
         painter.save()
         painter.translate(0, -self.width / 2)
         painter.drawRect(self.wheel_rect)
         painter.restore()
 
+        # Draw the left front wheels
         painter.save()
         painter.translate(self.length, -self.width / 2)
-        # Rotate the wheels based on the steering angle
         painter.rotate(math.degrees(self.steering_angle))
         painter.drawRect(self.wheel_rect)
         painter.restore()
 
+        # Draw the right rear wheels
         painter.save()
         painter.translate(0, self.width / 2)
         painter.drawRect(self.wheel_rect)
         painter.restore()
 
+        # Draw the right front wheels
         painter.save()
         painter.translate(self.length, self.width / 2)
-        # Rotate the wheels based on the steering angle
         painter.rotate(math.degrees(self.steering_angle))
         painter.drawRect(self.wheel_rect)
         painter.restore()
 
+        # Draw trailer
         painter.save()
-        # Rotate the wheels based on the steering angle
-        trailer_theta = math.degrees(self.state[2] - self.state[5])
+        trailer_theta = math.degrees(self.state[2] - self.state[3])
         painter.rotate(-trailer_theta)
         painter.drawRect(self.trailer_rect)
         painter.restore()
 
+        # draw control point
+        painter.save()
+        painter.rotate(-trailer_theta)
+        painter.setPen(self.CONTROL_POINT_PEN)
+        painter.drawPoint(
+            QPointF(self.trailer_point[0] - self.trailer_len, self.trailer_point[1]))
+        painter.restore()
+
 
 class GridScene(QGraphicsScene):
+    LINE_PEN = QPen(QColor(0, 0, 0), 2)
+    LINE_PEN.setCosmetic(True)
+
+    GREED_PEN = QPen(QColor(230, 230, 230), 2)
+    GREED_PEN.setCosmetic(True)
+    GRID_SIZE = 10  # Grid size for background grid
+
     def __init__(self):
         super().__init__()
         self.setSceneRect(-5000, -5000, 10000, 10000)  # Set scene size
-        self.grid_size = 50  # Grid size for background grid
         self.car = CarModel()  # Create car model
         self.addItem(self.car)  # Add car to the scene
 
         # Add a black line to the scene representing the path
         self.black_line = QGraphicsLineItem(A[0], A[1], B[0], B[1])
         # Set line color and width
-        self.black_line.setPen(QPen(QColor(0, 0, 0), 2))
+        self.black_line.setPen(self.LINE_PEN)
         self.addItem(self.black_line)
         # Set the path for the MPC controller
         # self.car.mpc.set_path_parameters(A, B)
@@ -179,7 +194,7 @@ class GridScene(QGraphicsScene):
         # Timer to periodically update car movement
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.updateCar)
-        self.timer.start(1000 // 10)  # 20 FPS
+        self.timer.start(100)  # 10 FPS
 
     def updateCar(self):
         self.car.move()  # Move the car based on optimized steering angles
@@ -188,19 +203,18 @@ class GridScene(QGraphicsScene):
         super().drawBackground(painter, rect)
 
         # Draw a grid background
-        grid_color = QColor(230, 230, 230)
-        painter.setPen(grid_color)
+        painter.setPen(self.GREED_PEN)
 
-        left = math.floor(rect.left() / self.grid_size) * self.grid_size
-        top = math.floor(rect.top() / self.grid_size) * self.grid_size
-        right = math.ceil(rect.right() / self.grid_size) * self.grid_size
-        bottom = math.ceil(rect.bottom() / self.grid_size) * self.grid_size
+        left = math.floor(rect.left() / self.GRID_SIZE) * self.GRID_SIZE
+        top = math.floor(rect.top() / self.GRID_SIZE) * self.GRID_SIZE
+        right = math.ceil(rect.right() / self.GRID_SIZE) * self.GRID_SIZE
+        bottom = math.ceil(rect.bottom() / self.GRID_SIZE) * self.GRID_SIZE
 
         # Draw vertical grid lines
-        for x in range(int(left), int(right), self.grid_size):
+        for x in range(int(left), int(right), int(self.GRID_SIZE)):
             painter.drawLine(x, top, x, bottom)
         # Draw horizontal grid lines
-        for y in range(int(top), int(bottom), self.grid_size):
+        for y in range(int(top), int(bottom), self.GRID_SIZE):
             painter.drawLine(left, y, right, y)
 
 
@@ -210,6 +224,7 @@ class CameraView(QGraphicsView):
         self.setRenderHint(QPainter.Antialiasing)
         self.setRenderHint(QPainter.SmoothPixmapTransform)
         self.setDragMode(QGraphicsView.ScrollHandDrag)
+        self.scale(10, 10)
 
     def wheelEvent(self, event):
         # Zoom in and out with the mouse wheel
