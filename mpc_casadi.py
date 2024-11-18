@@ -27,9 +27,10 @@ class Mpc:
             trailer_point Tuple[float, float]: control point in trailer coordinates, m. Defaults: [0., 0.]
         """
         opti = ca.Opti()
-        self.dt = dt
+
         # state: x, y, heading, trailer_heading:
         states = opti.variable(steps + 1, 4)
+        self.last_states = ca.DM.zeros(states.shape)
 
         # N + 1 control angle:
         angle = opti.variable(steps + 1)
@@ -103,7 +104,7 @@ class Mpc:
 
         self.mpc_fun = opti.to_function(
             'MPC',
-            [a, b, state_0, angle_0, speed, wheel_base, max_rate, max_angle],
+            [states, a, b, state_0, angle_0, speed, wheel_base, max_rate, max_angle],
             [states, angle])
 
     def optimize_controls(
@@ -131,7 +132,8 @@ class Mpc:
         Returns:
             float: steering angle
         """
-        solution = self.mpc_fun(
+        sol = self.mpc_fun(
+            self.last_states,
             a,
             b,
             state_0,
@@ -140,7 +142,8 @@ class Mpc:
             wheel_base,
             max_rate,
             max_angle)
-        return float(solution[1][1])
+        self.last_states[:-1] = sol[0][1:]
+        return float(sol[1][1])
 
     @staticmethod
     def create_xtrack_fun() -> ca.Function:
@@ -176,4 +179,5 @@ if __name__ == "__main__":
 
     res = mpc.optimize_controls(
         A, B, STATE_0, ANGLE_0, SPEED, WHEEL_BASE, MAX_RATE, MAX_ANGLE)
+    mpc.mpc_fun.generate('gen.c')
     print(res)
