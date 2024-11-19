@@ -20,6 +20,7 @@ class CarModel(QGraphicsItem):
     PERIOD = 10.  # Time period for steering change
     MAX_ANGLE = math.radians(25.)  # Maximum steering angle in radians
     MAX_RATE = math.radians(30)  # Maximum steering angle in radians
+    MAX_TRAILER_ANGLE = math.radians(45)  # Maximum steering angle in radians
 
     LINE_PEN = QPen(QColor(0, 0, 0), 2)
     LINE_PEN.setCosmetic(True)
@@ -41,7 +42,8 @@ class CarModel(QGraphicsItem):
         self.trailer_point = [0., 3.]  # Length of the trailer, m
 
         # Initial state: [x, y, heading, trailer_heading, trailer_x, trailer_y]
-        self.state = np.array([0., 0., 0., 0., -self.trailer_len, 0.])
+        heading = math.radians(20)
+        self.state = np.array([0., 0., heading, 0., -self.trailer_len, 0.])
 
         self.trailer_width = 2.  # Length of the trailer, m
         self.wheel_len = 1.  # Length of the wheels, m
@@ -98,7 +100,8 @@ class CarModel(QGraphicsItem):
                         self.speed,
                         self.length,
                         self.MAX_RATE,
-                        self.MAX_ANGLE)
+                        self.MAX_ANGLE,
+                        self.MAX_TRAILER_ANGLE)
                 except ValueError as e:
                     LOG.error(e)  # Log error if optimization fails
 

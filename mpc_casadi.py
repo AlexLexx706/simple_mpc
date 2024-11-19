@@ -9,7 +9,7 @@ class Mpc:
             dt: float = 0.3,
             steps: int = 10,
             xtrack_weight: float = 1.,
-            heading_weight: float = 20.,
+            heading_weight: float = 0.,
             max_iter: int = 50,
             trailer_length: float = 5.,
             trailer_offset: float = 0.,
@@ -48,6 +48,7 @@ class Mpc:
         wheel_base = opti.parameter()
         max_rate = opti.parameter()
         max_angle = opti.parameter()
+        max_trailer_angle = opti.parameter()
 
         # calculation of line heading:
         ba = b - a
@@ -88,6 +89,7 @@ class Mpc:
             opti.subject_to(
                 opti.bounded(-max_rate, (angle[i + 1] - angle[i]) / dt, max_rate))
             opti.subject_to(opti.bounded(-max_angle, angle[i], max_angle))
+            opti.subject_to(opti.bounded(-max_trailer_angle, states[i, 3] - states[i, 2], max_trailer_angle))
 
         # initial constrain:
         opti.subject_to(states[0, :] == state_0.T)
@@ -103,8 +105,10 @@ class Mpc:
         )
 
         self.mpc_fun = opti.to_function(
-            'MPC',
-            [states, a, b, state_0, angle_0, speed, wheel_base, max_rate, max_angle],
+            'MPC', [
+                states, a, b, state_0,
+                angle_0, speed, wheel_base,
+                max_rate, max_angle, max_trailer_angle],
             [states, angle])
 
     def optimize_controls(
@@ -116,7 +120,8 @@ class Mpc:
             speed: float,
             wheel_base: float,
             max_rate: float,
-            max_angle: float) -> float:
+            max_angle: float,
+            max_trailer_angle: float) -> float:
         """_summary_
 
         Args:
@@ -128,6 +133,7 @@ class Mpc:
             wheel_base (float): wheel_base len of vehicle, m
             max_rate (float): max rate of steering wheel, rad/s
             max_angle (float): max angle of steering wheel, rad
+            max_trailer_angle (float): Max angle between car heading and trailer heading, rad
 
         Returns:
             float: steering angle
@@ -141,7 +147,8 @@ class Mpc:
             speed,
             wheel_base,
             max_rate,
-            max_angle)
+            max_angle,
+            max_trailer_angle)
         self.last_states[:-1] = sol[0][1:]
         return float(sol[1][1])
 
