@@ -1,0 +1,30 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mpc_view"
+
+dependencies = [
+  "numpy",
+  "PyQt5",
+  "scipy",
+  "casadi"
+]
+
+requires-python = ">=3.8"
+version = "0.0.1"
+authors = [
+  { name="Alexey Kalmykov", email="alexlexx1@gmail.com" }
+]
+
+description = "MPC view"
+readme = "README.md"
+
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+
+[project.scripts]
+mpc_view = "mpc_view.main:main"

@@ -3,7 +3,7 @@ from scipy.optimize import minimize
 import math
 
 
-class MPCController:
+class MPCBlackBox:
     def __init__(
             self,
             v=20,
@@ -223,7 +223,7 @@ class MPCController:
 
 if __name__ == "__main__":
     # Example usage
-    mpc = MPCController(max_iterations=50)  # Limit the number of iterations
+    mpc = MPCBlackBox(max_iterations=50)  # Limit the number of iterations
     mpc.set_model_parameters(v=5, L=2.5, dt=0.1)
     mpc.set_cost_parameters(xtrack_factor=1, heading_error_factor=1)
     mpc.set_initial_state([1, 2, np.pi/4])  # Initial state

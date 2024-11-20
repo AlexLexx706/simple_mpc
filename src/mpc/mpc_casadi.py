@@ -3,11 +3,11 @@ import math
 import casadi as ca
 
 
-class Mpc:
+class MPCCasadi:
     def __init__(
             self,
             dt: float = 0.3,
-            steps: int = 10,
+            steps: int = 30,
             xtrack_weight: float = 1.,
             heading_weight: float = 0.,
             max_iter: int = 50,
@@ -49,6 +49,8 @@ class Mpc:
         max_rate = opti.parameter()
         max_angle = opti.parameter()
         max_trailer_angle = opti.parameter()
+        circle_1 = opti.parameter(3)
+        radius = opti.parameter()
 
         # calculation of line heading:
         ba = b - a
@@ -67,10 +69,12 @@ class Mpc:
                 ca.cos(states[i, 3]) * trailer_point[1],
             )
             trailer_pos = ca.vertcat(
-                pos[0] - ca.cos(states[i, 2]) * trailer_offset - ca.cos(states[i, 3]) * trailer_length,
+                pos[0] - ca.cos(states[i, 2]) * trailer_offset -
+                ca.cos(states[i, 3]) * trailer_length,
                 pos[1] - ca.sin(states[i, 2]) * trailer_offset - ca.sin(states[i, 3]) * trailer_length)
 
-            common_cost += xtrack_weight * xtrack(a, b, trailer_pos + control_point_offset) ** 2
+            common_cost += xtrack_weight * \
+                xtrack(a, b, trailer_pos + control_point_offset) ** 2
             common_cost += heading_weight * (states[i, 3] - line_heading) ** 2
         opti.minimize(common_cost)
 
@@ -89,7 +93,12 @@ class Mpc:
             opti.subject_to(
                 opti.bounded(-max_rate, (angle[i + 1] - angle[i]) / dt, max_rate))
             opti.subject_to(opti.bounded(-max_angle, angle[i], max_angle))
-            opti.subject_to(opti.bounded(-max_trailer_angle, states[i, 3] - states[i, 2], max_trailer_angle))
+            opti.subject_to(opti.bounded(-max_trailer_angle,
+                            states[i, 3] - states[i, 2], max_trailer_angle))
+
+            pos = states[i, :2]
+            c_pos = circle_1[:2].T
+            opti.subject_to(ca.norm_2(pos - c_pos) <= (circle_1[2] + radius))
 
         # initial constrain:
         opti.subject_to(states[0, :] == state_0.T)
@@ -108,7 +117,9 @@ class Mpc:
             'MPC', [
                 states, a, b, state_0,
                 angle_0, speed, wheel_base,
-                max_rate, max_angle, max_trailer_angle],
+                max_rate, max_angle, max_trailer_angle,
+                circle_1,
+                radius],
             [states, angle])
 
     def optimize_controls(
@@ -121,7 +132,9 @@ class Mpc:
             wheel_base: float,
             max_rate: float,
             max_angle: float,
-            max_trailer_angle: float) -> float:
+            max_trailer_angle: float,
+            circle_1: Tuple[float, float, float],
+            radius: float) -> float:
         """_summary_
 
         Args:
@@ -134,10 +147,12 @@ class Mpc:
             max_rate (float): max rate of steering wheel, rad/s
             max_angle (float): max angle of steering wheel, rad
             max_trailer_angle (float): Max angle between car heading and trailer heading, rad
-
+            circle_1 (Tuple[float, float, float]) - parameter of the obstacle circle: x,y,radius
+            radius (float): radius of border around car
         Returns:
             float: steering angle
         """
+        print(circle_1, radius)
         sol = self.mpc_fun(
             self.last_states,
             a,
@@ -148,7 +163,9 @@ class Mpc:
             wheel_base,
             max_rate,
             max_angle,
-            max_trailer_angle)
+            max_trailer_angle,
+            circle_1,
+            radius)
         self.last_states[:-1] = sol[0][1:]
         return float(sol[1][1])
 
@@ -173,7 +190,7 @@ class Mpc:
 
 
 if __name__ == "__main__":
-    mpc = Mpc()
+    mpc = MPCCasadi()
 
     A = [0., 0.]
     B = [100., 0.]
@@ -183,8 +200,10 @@ if __name__ == "__main__":
     WHEEL_BASE = 3
     MAX_RATE = math.radians(60)
     MAX_ANGLE = math.radians(25)
+    MAX_TRAILER_ANGLE = math.radians(25)
 
     res = mpc.optimize_controls(
-        A, B, STATE_0, ANGLE_0, SPEED, WHEEL_BASE, MAX_RATE, MAX_ANGLE)
+        A, B, STATE_0, ANGLE_0, SPEED, WHEEL_BASE,
+        MAX_RATE, MAX_ANGLE, MAX_TRAILER_ANGLE)
     mpc.mpc_fun.generate('gen.c')
     print(res)

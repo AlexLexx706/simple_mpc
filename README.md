@@ -6,7 +6,6 @@ The simulation is implemented using PyQt5 for rendering the car model and animat
 
 ## Features
 - **MPC Control**: The car uses an MPC controller to navigate through a path by optimizing its steering angles.
-- **Ackermann Steering Model**: The car model uses the Ackermann steering geometry for realistic front-wheel steering.
 - **Path Following**: You can define start and end points (A and B), and the car will try to follow the shortest path between them.
 - **Interactive View**: The PyQt5 view allows you to zoom and pan around the scene.
 - **Car Dynamics**: The car model includes parameters like speed, steering angle, car length, and wheel dimensions.
@@ -14,7 +13,6 @@ The simulation is implemented using PyQt5 for rendering the car model and animat
 ## How to Setup and Run (Linux):
 ```bash
  python3 -m virtualenv venv
- . ./venv/bin/activate
- pip install -r requirements.txt
- python test_pyqt.py
+ ./venv/bin/pip install -e .
+ ./venv/bin/mpc_view
 ```
