@@ -19,7 +19,7 @@ class CarModel(QtWidgets.QGraphicsItem):
     PERIOD = 10.  # Time period for steering change
     MAX_ANGLE = math.radians(25.)  # Maximum steering angle in radians
     MAX_RATE = math.radians(30)  # Maximum steering angle in radians
-    MAX_TRAILER_ANGLE = math.radians(45)  # Maximum steering angle in radians
+    MAX_TRAILER_ANGLE = math.radians(30)  # Maximum steering angle in radians
 
     LINE_PEN = QtGui.QPen(QtGui.QColor(0, 0, 0), 2)
     LINE_PEN.setCosmetic(True)
