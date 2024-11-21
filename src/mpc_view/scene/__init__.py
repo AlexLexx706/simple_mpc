@@ -15,7 +15,7 @@ class Scene(QtWidgets.QGraphicsScene):
     GREED_PEN = QtGui.QPen(QtGui.QColor(230, 230, 230), 2)
     GREED_PEN.setCosmetic(True)
     GRID_SIZE = 10  # Grid size for background grid
-    DT = 1 / 10. # update car period, sec
+    DT = 1 / 10.  # update car period, sec
     CIRCLE_RADIUS = 50.
 
     PREDICTED_PATH_PEN = QtGui.QPen(QtGui.QColor(255, 0, 0), 2)
@@ -26,13 +26,20 @@ class Scene(QtWidgets.QGraphicsScene):
         self.setSceneRect(-5000, -5000, 10000, 10000)  # Set scene size
         self.car = car.CarModel()  # Create car model
         self.addItem(self.car)  # Add car to the scene
-
+        self.car.setFlags(
+            QtWidgets.QGraphicsRectItem.ItemIsMovable
+            | QtWidgets.QGraphicsRectItem.ItemIsSelectable
+            | QtWidgets.QGraphicsRectItem.ItemSendsGeometryChanges)
         # Add a black line to the scene representing the path
-        self.line = QtWidgets.QGraphicsLineItem(-2000, -100, 2000, 50)
+        self.line = QtWidgets.QGraphicsLineItem(-2000, -100, 2000, -100)
 
         # Set line color and width
         self.line.setPen(self.LINE_PEN)
         self.addItem(self.line)
+        self.line.setFlags(
+            QtWidgets.QGraphicsRectItem.ItemIsMovable
+            | QtWidgets.QGraphicsRectItem.ItemIsSelectable
+            | QtWidgets.QGraphicsRectItem.ItemSendsGeometryChanges)
 
         self.circle = self.addEllipse(
             QtCore.QRectF(
@@ -42,19 +49,31 @@ class Scene(QtWidgets.QGraphicsScene):
                 self.CIRCLE_RADIUS * 2),
             self.LINE_PEN)
         self.circle.setPos(100, 0)
+        self.circle.setFlags(
+            QtWidgets.QGraphicsRectItem.ItemIsMovable
+            | QtWidgets.QGraphicsRectItem.ItemIsSelectable
+            | QtWidgets.QGraphicsRectItem.ItemSendsGeometryChanges)
+
         self.predicted_path = QtWidgets.QGraphicsPathItem()
         self.predicted_path.setPen(self.PREDICTED_PATH_PEN)
         self.addItem(self.predicted_path)
 
     def update_car(self):
         line = self.line.line()
+        line_pos = self.line.pos()
+        line = ((
+            line.x1() + line_pos.x(),
+            line.y1() + line_pos.y()), (
+            line.x2() + line_pos.x(),
+            line.y2() + line_pos.y()))
         circle_pos = self.circle.pos()
-
+        circle = (circle_pos.x(), circle_pos.y(),
+                  self.circle.rect().width() / 2.)
         # MPC drive car
         solution = self.car.move(
             self.DT,
-            ((line.x1(), line.y1()), (line.x2(), line.y2())),
-            (circle_pos.x(), circle_pos.y(), self.circle.rect().width() / 2.))
+            line,
+            circle)
 
         if solution:
             predicted_path = QtGui.QPainterPath()
