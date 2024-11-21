@@ -4,6 +4,8 @@ import casadi as ca
 
 
 class MPCCasadi:
+    SOFT_CONSTRAIN=True
+
     def __init__(
             self,
             dt: float = 0.3,
@@ -72,12 +74,13 @@ class MPCCasadi:
                 xtrack(a, b, trailer_pos + control_point_offset) ** 2
             common_cost += heading_weight * (states[i, 3] - line_heading) ** 2
 
-            # Adding a constraint for an obstacle described by a circle.
-            pos = states[i, :2]
-            c_pos = circle_1[:2].T
-            distance = ca.norm_2(pos - c_pos)
-            distance_cost = 1000. ** (-(distance - (circle_1[2] + radius)))
-            common_cost += distance_cost
+            if self.SOFT_CONSTRAIN:
+                # Adding a constraint for an obstacle described by a circle.
+                pos = states[i, :2]
+                c_pos = circle_1[:2].T
+                distance = ca.norm_2(pos - c_pos)
+                distance_cost = 1000. ** (-(distance - (circle_1[2] + radius)))
+                common_cost += distance_cost
 
         opti.minimize(common_cost)
 
@@ -98,6 +101,10 @@ class MPCCasadi:
             opti.subject_to(opti.bounded(-max_angle, angle[i], max_angle))
             opti.subject_to(opti.bounded(-max_trailer_angle,
                             states[i, 3] - states[i, 2], max_trailer_angle))
+            if not self.SOFT_CONSTRAIN:
+                pos = states[i, :2]
+                c_pos = circle_1[:2].T
+                opti.subject_to(ca.norm_2(pos - c_pos) >= (circle_1[2] + radius))
 
         # initial constrain:
         opti.subject_to(states[0, :] == state_0.T)
