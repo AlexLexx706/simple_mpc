@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Tuple, List
 import math
 import casadi as ca
 
@@ -8,23 +8,13 @@ class MPCCasadi:
             self,
             dt: float = 0.1,
             steps: int = 10,
-            xtrack_weight: float = 1.,
-            heading_weight: float = 50.,
-            max_iter: int = 50,
-            trailer_length: float = 5.,
-            trailer_offset: float = 0.,
-            trailer_point: Tuple[float, float] = [0., 2.]):
+            max_iter: int = 50):
         """MPC for controlling trailer points
 
         Args:
             dt (float, optional): integration step, s. Defaults to 0.5.
             steps (int, optional): number of steps - horizon prediction. Defaults to 10.
-            xtrack_weight (float, optional): weight of xtrack in control low. Defaults to 1..
-            heading_weight (float, optional): weight of heading error in control low. Defaults to 150..
             max_iter (int, optional): limit of max iterations for solver. Defaults to 50.
-            trailer_length (float, optional): length of trailer, m. Defaults to 5..
-            trailer_offset (float, optional): offset of the trailer coupling, m. Defaults to 0..
-            trailer_point Tuple[float, float]: control point in trailer coordinates, m. Defaults: [0., 0.]
         """
         opti = ca.Opti()
 
@@ -49,6 +39,11 @@ class MPCCasadi:
         max_rate = opti.parameter()
         max_angle = opti.parameter()
         max_trailer_angle = opti.parameter()
+        trailer_length = opti.parameter()
+        trailer_offset = opti.parameter()
+        trailer_point = opti.parameter(2)
+        xtrack_weight = opti.parameter()
+        heading_weight = opti.parameter()
         circle_1 = opti.parameter(3)
         radius = opti.parameter()
 
@@ -101,7 +96,8 @@ class MPCCasadi:
             opti.subject_to(
                 opti.bounded(-max_rate, (angle[i + 1] - angle[i]) / dt, max_rate))
             opti.subject_to(opti.bounded(-max_angle, angle[i], max_angle))
-            opti.subject_to(opti.bounded(-max_trailer_angle, states[i, 3] - states[i, 2], max_trailer_angle))
+            opti.subject_to(opti.bounded(-max_trailer_angle,
+                            states[i, 3] - states[i, 2], max_trailer_angle))
 
         # initial constrain:
         opti.subject_to(states[0, :] == state_0.T)
@@ -118,9 +114,21 @@ class MPCCasadi:
 
         self.mpc_fun = opti.to_function(
             'MPC', [
-                states, a, b, state_0,
-                angle_0, speed, wheel_base,
-                max_rate, max_angle, max_trailer_angle,
+                states,
+                a,
+                b,
+                state_0,
+                angle_0,
+                speed,
+                wheel_base,
+                max_rate,
+                max_angle,
+                max_trailer_angle,
+                trailer_length,
+                trailer_offset,
+                trailer_point,
+                xtrack_weight,
+                heading_weight,
                 circle_1,
                 radius],
             [states, angle])
@@ -136,9 +144,16 @@ class MPCCasadi:
             max_rate: float,
             max_angle: float,
             max_trailer_angle: float,
+            trailer_length: float,
+            trailer_offset: float,
+            trailer_point: Tuple[float, float],
+            xtrack_weight: float,
+            heading_weight: float,
             circle_1: Tuple[float, float, float],
-            radius: float) -> float:
-        """_summary_
+            radius: float) -> Tuple[
+                List[Tuple[float, float, float, float]],
+                List[Tuple[float, float, float, float]]]:
+        """Run MPC for car model
 
         Args:
             a (Tuple[float, float]): A point of line
@@ -150,12 +165,20 @@ class MPCCasadi:
             max_rate (float): max rate of steering wheel, rad/s
             max_angle (float): max angle of steering wheel, rad
             max_trailer_angle (float): Max angle between car heading and trailer heading, rad
+            xtrack_weight (float, optional): weight of xtrack in control low.
+            heading_weight (float, optional): weight of heading error in control low
+            trailer_length (float, optional): length of trailer, m.
+            trailer_offset (float, optional): offset of the trailer coupling, m
+            trailer_point Tuple[float, float]: control point [x,y] in trailer coordinates, m
             circle_1 (Tuple[float, float, float]) - parameter of the obstacle circle: x,y,radius
             radius (float): radius of border around car
         Returns:
-            float: steering angle
+            Tuple[
+                List[Tuple[float, float, float, float]],
+                List[Tuple[float, float, float, float]]]: tuple of [states, control_angles]:
+                    states : List[Tuple[x, y, heading, trailer_heading],...] - len depends from MPC model
+                    control_angles: List[angle,...] - len depends from MPC model
         """
-        print(circle_1, radius)
         sol = self.mpc_fun(
             self.last_states,
             a,
@@ -167,10 +190,15 @@ class MPCCasadi:
             max_rate,
             max_angle,
             max_trailer_angle,
+            trailer_length,
+            trailer_offset,
+            trailer_point,
+            xtrack_weight,
+            heading_weight,
             circle_1,
             radius)
         self.last_states[:-1] = sol[0][1:]
-        return float(sol[1][1])
+        return sol
 
     @staticmethod
     def create_xtrack_fun() -> ca.Function:

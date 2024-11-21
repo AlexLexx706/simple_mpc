@@ -1,4 +1,5 @@
 import numpy as np
+from typing import Tuple
 from scipy.optimize import minimize
 import math
 
@@ -117,27 +118,35 @@ class MPCBlackBox:
     # Kinematic model of a car with a trailer
 
     @staticmethod
-    def trailer_model(state, v_1, delta, l_1=2.5, l_2=3.5, l_1c=1):
+    def trailer_model(
+            state:Tuple[float, float, float, float, float, float],
+            v_1:float,
+            delta:float,
+            l_1:float,
+            l_2:float,
+            l_1c:float)->Tuple[float, float, float, float, float, float]:
         """
         Function to predict the state changes of a car with a trailer.
 
         Parameters:
-        state (dict): Current state of the model with keys:
-            'car_pos' - position of the car (x, y),
-            'car_theta' - orientation of the car (angle),
-            'trailer_pos' - position of the trailer (x, y),
-            'trailer_theta' - orientation of the trailer (angle).
-        v_1 (float): Speed of the car.
-        delta (float): New steering angle of the car's wheels (in radians).
-        dt (float): Integration step (in seconds).
-        l_1 (float): Length of the car.
-        l_2 (float): Length of the trailer.
-        l_1c (float): Offset of the trailer coupling.
+        state (Tuple[float, float, float, float, float, float]): Current state of the model with keys:
+            x - position of the car x, m
+            y - position of the car y, m
+            car_theta - orientation of the car, radians
+            trailer_theta - orientation of the trailer, radians
+            t_x - position of the trailer x, m
+            t_x - position of the trailer y, m
+
+        v_1 (float): Speed of the car, m/s.
+        delta (float): New steering angle of the car's wheels, radians.
+        dt (float): Integration step, seconds
+        l_1 (float): Length of the car, m
+        l_2 (float): Length of the trailer, m
+        l_1c (float): Offset of the trailer coupling, m
 
         Returns:
-        dict: The new state of the model.
+        new_state (Tuple[float, float, float, float, float, float]): new state of the model (look at state parameter)
         """
-
         # Extract current state values
         psi_1 = state[2]
         psi_2 = state[3]

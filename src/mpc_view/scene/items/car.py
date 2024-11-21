@@ -9,17 +9,32 @@ from PyQt5 import QtGui
 from PyQt5 import QtWidgets
 from mpc import mpc_back_box
 from mpc import mpc_casadi
+from mpc_view import scene
 
 LOG = logging.getLogger(__name__)
 
 
-class CarModel(QtWidgets.QGraphicsItem):
-    """Simple visualization of car with trailer
+class CarModel(QtWidgets.QGraphicsItemGroup):
+    """Visualization of car with trailer
     """
     PERIOD = 10.  # Time period for steering change
     MAX_ANGLE = math.radians(25.)  # Maximum steering angle in radians
     MAX_RATE = math.radians(30)  # Maximum steering angle in radians
     MAX_TRAILER_ANGLE = math.radians(30)  # Maximum steering angle in radians
+    WIDTH = 3  # default width base, m
+    WHEEL_BASE = 5  # default wheel base, m
+    TRAILER_WIDTH = 2.  # default Length of the trailer, m
+    WHEEL_LEN = 1.  # default Length of the wheels, m
+    WHEEL_WIDTH = 0.3  # default Width of the wheels, m
+    STEERING_ANGLE = 0.  # Initial steering angle (in radians)
+    TRAILER_LEN = 5  # Length of the trailer, m
+    TRAILER_OFFSET = 0.  # offset of trailer joint, m
+    TRAILER_CTRL_POINT = [0., 3.]  # Steering point in trailer frame, m
+    RADIUS = 5.  # bounding circle radius, m
+    SPEED = 5   # Car speed m/s
+
+    XTRACK_WEIGHT = 1.
+    HEADING_WEIGHT = 30
 
     LINE_PEN = QtGui.QPen(QtGui.QColor(0, 0, 0), 2)
     LINE_PEN.setCosmetic(True)
@@ -33,226 +48,164 @@ class CarModel(QtWidgets.QGraphicsItem):
 
     CIRCLE_BRUSH = QtGui.QBrush(QtCore.Qt.black, QtCore.Qt.NoBrush)
 
+    CTRL_POINT_RADIUS = 0.3
+    CTRL_POINT_PEN = QtGui.QPen(QtCore.Qt.black, 2)
+    CTRL_POINT_PEN.setCosmetic(True)
+    CTRL_POINT_BRUSH = QtCore.Qt.black
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.length = 3  # Length of the car base, m
-        self.width = 2  # Width of the car, m
-        self.speed = -5.  # Car speed m/s
-        self.steering_angle = 0.  # Initial steering angle (in radians)
-        self.trailer_len = 5  # Length of the trailer, m
-        self.trailer_point = [0., 3.]  # Length of the trailer, m
-        self.line = ((-2000, -100), (2000, 50))
-        self.radius = 5
-        self.circle_1 = [0, 0, 10]
+        self.speed = self.SPEED
 
-        # Initial state: [x, y, heading, trailer_heading, trailer_x, trailer_y]
-        heading = math.radians(20)
-        self.state = np.array([0., 0., heading, 0., -self.trailer_len, 0.])
+        # set geometry of the car:
+        self.body = QtWidgets.QGraphicsRectItem(
+            0,
+            -self.WIDTH / 2.,
+            self.WHEEL_BASE,
+            self.WIDTH,
+            self)
+        self.body.setPen(self.LINE_PEN)
+        self.body.setBrush(self.BODY_COLOR)
 
-        self.trailer_width = 2.  # Length of the trailer, m
-        self.wheel_len = 1.  # Length of the wheels, m
-        self.wheel_width = 0.3  # Width of the wheels, m
+        self.front_left_wheel = QtWidgets.QGraphicsRectItem(
+            -self.WHEEL_LEN / 2.,
+            -self.WHEEL_WIDTH / 2.,
+            self.WHEEL_LEN,
+            self.WHEEL_WIDTH,
+            self)
+        self.front_left_wheel.setPos(self.WHEEL_BASE, -self.WIDTH / 2.)
+        self.front_left_wheel.setPen(self.LINE_PEN)
+        self.front_left_wheel.setBrush(self.WHEEL_COLOR)
 
-        self.trailer_rect = QtCore.QRectF(
-            -self.trailer_len,
-            -self.trailer_width / 2.,
-            self.trailer_len,
-            self.trailer_width)
+        self.front_right_wheel = QtWidgets.QGraphicsRectItem(
+            self.front_left_wheel.rect(),
+            self)
+        self.front_right_wheel.setPos(self.WHEEL_BASE, self.WIDTH / 2.)
+        self.front_right_wheel.setPen(self.LINE_PEN)
+        self.front_right_wheel.setBrush(self.WHEEL_COLOR)
 
-        # Rectangle for the car body
-        self.body_rect = QtCore.QRectF(
-            0., int(-self.width / 2),
-            self.length, self.width)
+        self.rear_left_wheel = QtWidgets.QGraphicsRectItem(
+            self.front_left_wheel.rect(),
+            self)
+        self.rear_left_wheel.setPos(0., -self.WIDTH / 2.)
+        self.rear_left_wheel.setPen(self.LINE_PEN)
+        self.rear_left_wheel.setBrush(self.WHEEL_COLOR)
 
-        # Rectangles for the car wheels
-        self.wheel_rect = QtCore.QRectF(
-            -self.wheel_len / 2.,
-            -self.wheel_width / 2.,
-            self.wheel_len,
-            self.wheel_width
-        )
+        self.rear_right_wheel = QtWidgets.QGraphicsRectItem(
+            self.front_left_wheel.rect(),
+            self)
+        self.rear_right_wheel.setPos(0., self.WIDTH / 2.)
+        self.rear_right_wheel.setPen(self.LINE_PEN)
+        self.rear_right_wheel.setBrush(self.WHEEL_COLOR)
 
-        # Boundaries for the car movement
-        self.bounds = QtCore.QRectF(
-            -100,
-            -100,
-            200,
-            200)
+        self.trailer = QtWidgets.QGraphicsRectItem(
+            -self.TRAILER_LEN,
+            -self.TRAILER_WIDTH / 2.,
+            self.TRAILER_LEN,
+            self.TRAILER_WIDTH,
+            self)
+        self.trailer.setPen(self.LINE_PEN)
+        self.trailer.setBrush(self.BODY_COLOR)
+
+        self.trailer_left_wheel = QtWidgets.QGraphicsRectItem(
+            self.front_left_wheel.rect(),
+            self.trailer)
+        self.trailer_left_wheel.setPos(
+            -self.TRAILER_LEN,
+            -self.TRAILER_WIDTH / 2.)
+        self.trailer_left_wheel.setPen(self.LINE_PEN)
+        self.trailer_left_wheel.setBrush(self.WHEEL_COLOR)
+
+        self.trailer_right_wheel = QtWidgets.QGraphicsRectItem(
+            self.front_left_wheel.rect(),
+            self.trailer)
+        self.trailer_right_wheel.setPos(
+            -self.TRAILER_LEN,
+            self.TRAILER_WIDTH / 2.)
+        self.trailer_right_wheel.setPen(self.LINE_PEN)
+        self.trailer_right_wheel.setBrush(self.WHEEL_COLOR)
+
+        self.circle = QtWidgets.QGraphicsEllipseItem(
+            -self.RADIUS,
+            -self.RADIUS,
+            2 * self.RADIUS,
+            2 * self.RADIUS,
+            self)
+        self.circle.setPen(self.LINE_PEN)
+
+        self.ctrl_point = QtWidgets.QGraphicsEllipseItem(
+            -self.CTRL_POINT_RADIUS,
+            -self.CTRL_POINT_RADIUS,
+            2 * self.CTRL_POINT_RADIUS,
+            2 * self.CTRL_POINT_RADIUS,
+            self.trailer)
+        self.ctrl_point.setPos(
+            self.TRAILER_CTRL_POINT[0] - self.TRAILER_LEN,
+            self.TRAILER_CTRL_POINT[1])
+        self.ctrl_point.setPen(self.CTRL_POINT_PEN)
+        self.ctrl_point.setBrush(self.CTRL_POINT_BRUSH)
 
         # MPC controller
-        self.mpc = mpc_casadi.MPCCasadi(
-            trailer_length=self.trailer_len,
-            trailer_point=self.trailer_point)
+        self.mpc = mpc_casadi.MPCCasadi()
 
-    def set_circle_1(self, circle_1: Tuple[float, float, float]):
-        """Setup parameters of the obstacle circle: x,y,radius
-
-        Args:
-            circle_1 (Tuple[float, float, float]): x, y, radius
-        """
-        self.circle_1 = circle_1
-
-    def set_line(self, line: Tuple[Tuple[float, float], Tuple[float, float]]):
-        """Set line for MCP
+    def move(
+            self,
+            dt: float,
+            line: Tuple[Tuple[float, float], Tuple[float, float]],
+            circle_obstacle: Tuple[float, float, float]):
+        """Moves the car based on MPC, by updating its position and orientation
 
         Args:
-            line (Tuple[Tuple[float, float], Tuple[float, float]]): line - A, B points
+            dt (float): dt, sec
+            line (Tuple[Tuple[float, float], Tuple[float, float]]): line path description:
+                A point: [x,y]
+                B point: [x,y]
+            circle_obstacle (Tuple[float, float, float]): description of circle obstacle: x,y,radius
         """
-        self.line = line
-
-    def set_heading(self, heading: float):
-        """set car heading, rad
-
-        Args:
-            heading (float): heading in rad
-        """
-        dh = heading - self.state[2]
-        self.state[2] = heading
-        self.state[3] = self.state[3] + dh
-        self.setRotation(math.degrees(self.state[2]))  # Update car orientation
-        self.update()
-
-    def get_heading(self) -> float:
-        """get heading, rad
-
-        Returns:
-            float: heading in rad
-        """
-        return self.state[2]
-
-    def set_trailer_angle(self, angle: float):
-        """set trailer angle, rad
-
-        Args:
-            heading (float): angle in rad
-        """
-        self.state[3] = self.state[2] + angle
-        self.update()
-
-    def get_trailer_angle(self) -> float:
-        """return trailer angle, rad
-
-        Returns:
-            float: trailer angle, rad
-        """
-        return self.state[3] - self.state[2]
-
-    def set_state(self, pos: Tuple[float, float], heading: float, trailer_angle: float):
-        """Set state of car
-        Args:
-            pos (Tuple[float, float]): position
-            heading (float): orientation
-            trailer_angle (float): trailer angle
-        """
-        t_heading = heading + trailer_angle
-        self.state = np.array([
-            pos[0], pos[1],
-            heading,
-            t_heading,
-            pos[0] - np.cos(t_heading) * self.trailer_len,
-            pos[1] - np.sin(t_heading) * self.trailer_len])
-
-        self.setPos(self.state[0], self.state[1])  # Update car position
-        self.setRotation(math.degrees(self.state[2]))  # Update car orientation
-        self.update()
-
-    def move(self, dt):
-        """Moves the car by updating its position and orientation"""
         try:
-            self.steering_angle = self.mpc.optimize_controls(
-                self.line[0],
-                self.line[1],
-                self.state[:4],
-                self.steering_angle,
+            heading = self.rotation()
+            state = np.array([
+                self.x(),
+                self.y(),
+                math.radians(heading),
+                math.radians(heading + self.trailer.rotation())])
+
+            ctrl_point_pos = self.ctrl_point.pos()
+            trailer_len = self.trailer.rect().width()
+            solution = self.mpc.optimize_controls(
+                line[0],
+                line[1],
+                state,
+                math.radians(self.front_left_wheel.rotation()),
                 self.speed,
-                self.length,
+                self.body.rect().width(),
                 self.MAX_RATE,
                 self.MAX_ANGLE,
                 self.MAX_TRAILER_ANGLE,
-                self.circle_1,
-                self.radius)
+                trailer_len,
+                self.TRAILER_OFFSET,
+                (trailer_len - ctrl_point_pos.x(), ctrl_point_pos.y()),
+                self.XTRACK_WEIGHT,
+                self.HEADING_WEIGHT,
+                circle_obstacle,
+                self.circle.rect().width() / 2.)
         except ValueError as e:
-            LOG.error(e)  # Log error if optimization fails
+            # optimization fails
+            LOG.error(e)
+            return
 
         # Update car state
-        self.state += mpc_back_box.MPCBlackBox.trailer_model(
-            self.state,
+        steering_angle = float(solution[1][1])
+        state += mpc_back_box.MPCBlackBox.trailer_model(
+            state,
             self.speed,
-            self.steering_angle,
-            self.length,
-            self.trailer_len,
-            0) * dt
+            steering_angle,
+            self.body.rect().width(),
+            self.trailer.rect().width(),
+            0)[:4] * dt
 
-        self.setPos(self.state[0], self.state[1])  # Update car position
-        self.setRotation(math.degrees(self.state[2]))  # Update car orientation
-        self.update()
-
-    def boundingRect(self) -> QtCore.QRectF:
-        """Return bounding box of object
-
-        Returns:
-            QtCore.QRectF: bounding box
-        """
-        return self.bounds
-
-    def paint(self, painter: QtGui.QPainter, option, widget):
-        """Draw car and trailer
-
-        Args:
-            painter (QtGui.QPainter): painter
-            option (QStyleOptionGraphicsItem): options
-            widget (QWidget): widget
-        """
-        # Paint the car model (body and wheels) using QPainter
-        painter.setPen(self.LINE_PEN)
-        painter.setBrush(self.BODY_COLOR)
-        painter.drawRect(self.body_rect)
-
-        # Draw the left rear wheels
-        painter.setBrush(self.WHEEL_COLOR)  # Red color for wheels
-        painter.save()
-        painter.translate(0, -self.width / 2)
-        painter.drawRect(self.wheel_rect)
-        painter.restore()
-
-        # Draw the left front wheels
-        painter.save()
-        painter.translate(self.length, -self.width / 2)
-        painter.rotate(math.degrees(self.steering_angle))
-        painter.drawRect(self.wheel_rect)
-        painter.restore()
-
-        # Draw the right rear wheels
-        painter.save()
-        painter.translate(0, self.width / 2)
-        painter.drawRect(self.wheel_rect)
-        painter.restore()
-
-        # Draw the right front wheels
-        painter.save()
-        painter.translate(self.length, self.width / 2)
-        painter.rotate(math.degrees(self.steering_angle))
-        painter.drawRect(self.wheel_rect)
-        painter.restore()
-
-        # Draw trailer
-        painter.save()
-        trailer_theta = math.degrees(self.state[2] - self.state[3])
-        painter.rotate(-trailer_theta)
-        painter.drawRect(self.trailer_rect)
-        painter.restore()
-
-        # draw control point
-        painter.save()
-        painter.rotate(-trailer_theta)
-        painter.setPen(self.CONTROL_POINT_PEN)
-        painter.drawPoint(
-            QtCore.QPointF(self.trailer_point[0] - self.trailer_len, self.trailer_point[1]))
-        painter.restore()
-
-        painter.setBrush(self.CIRCLE_BRUSH)
-        painter.drawEllipse(QtCore.QRectF(
-            -self.radius,
-            -self.radius,
-            2 * self.radius,
-            2 * self.radius))
+        self.front_left_wheel.setRotation(math.degrees(steering_angle))
+        self.front_right_wheel.setRotation(math.degrees(steering_angle))
+        self.setPos(state[0], state[1])
+        self.setRotation(math.degrees(state[2]))
+        self.trailer.setRotation(math.degrees(state[3] - state[2]))

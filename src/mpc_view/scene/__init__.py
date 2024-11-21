@@ -15,32 +15,40 @@ class Scene(QtWidgets.QGraphicsScene):
     GREED_PEN = QtGui.QPen(QtGui.QColor(230, 230, 230), 2)
     GREED_PEN.setCosmetic(True)
     GRID_SIZE = 10  # Grid size for background grid
+    DT = 0.1  # update car period, sec
+    CIRCLE_RADIUS = 50.
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.setSceneRect(-5000, -5000, 10000, 10000)  # Set scene size
-
-        self.line = ((-2000, -100), (2000, 50))
-
         self.car = car.CarModel()  # Create car model
-        self.car.set_line(self.line)
         self.addItem(self.car)  # Add car to the scene
 
         # Add a black line to the scene representing the path
-        self.black_line = QtWidgets.QGraphicsLineItem(
-            self.line[0][0],
-            self.line[0][1],
-            self.line[1][0],
-            self.line[1][1])
+        self.line = QtWidgets.QGraphicsLineItem(-2000, -100, 2000, 50)
 
         # Set line color and width
-        self.black_line.setPen(self.LINE_PEN)
-        self.addItem(self.black_line)
+        self.line.setPen(self.LINE_PEN)
+        self.addItem(self.line)
 
-        self.ellipse = self.addEllipse(
-            QtCore.QRectF(10, 10, 20, 20),
+        self.circle = self.addEllipse(
+            QtCore.QRectF(
+                -self.CIRCLE_RADIUS,
+                -self.CIRCLE_RADIUS,
+                self.CIRCLE_RADIUS * 2,
+                self.CIRCLE_RADIUS * 2),
             self.LINE_PEN)
-        self.ellipse.setPos(0, 0)
+        self.circle.setPos(100, 0)
+
+    def update_car(self):
+        line = self.line.line()
+        circle_pos = self.circle.pos()
+
+        # MPC drive car
+        self.car.move(
+            self.DT,
+            ((line.x1(), line.y1()), (line.x2(), line.y2())),
+            (circle_pos.x(), circle_pos.y(), self.circle.rect().width() / 2.))
 
     def drawBackground(self, painter, rect):
         super().drawBackground(painter, rect)
