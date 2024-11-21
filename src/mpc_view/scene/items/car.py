@@ -1,15 +1,12 @@
 import math
-import numpy as np
-import time
 import logging
-from typing import Tuple
+from typing import Tuple, List, Union
+import numpy as np
 from PyQt5 import QtCore
-from PyQt5 import Qt
 from PyQt5 import QtGui
 from PyQt5 import QtWidgets
 from mpc import mpc_back_box
 from mpc import mpc_casadi
-from mpc_view import scene
 
 LOG = logging.getLogger(__name__)
 
@@ -148,11 +145,61 @@ class CarModel(QtWidgets.QGraphicsItemGroup):
         # MPC controller
         self.mpc = mpc_casadi.MPCCasadi()
 
+    def predict(
+            self,
+            line: Tuple[Tuple[float, float], Tuple[float, float]],
+            circle_obstacle: Tuple[float, float, float]) -> Tuple[
+                List[Tuple[float, float, float, float]],
+                List[Tuple[float, float, float, float]]]:
+        """Moves the car based on MPC, by updating its position and orientation
+
+        Args:
+            line (Tuple[Tuple[float, float], Tuple[float, float]]): line path description:
+                A point: [x,y]
+                B point: [x,y]
+            circle_obstacle (Tuple[float, float, float]): description of circle obstacle: x,y,radius
+        Returns:
+            Tuple[
+                List[Tuple[float, float, float, float]],
+                List[Tuple[float, float, float, float]]]: tuple of [states, control_angles]:
+                    states : List[Tuple[x, y, heading, trailer_heading],...] - len depends from MPC model
+                    control_angles: List[angle,...] - len depends from MPC model
+        """
+        heading = self.rotation()
+        state = np.array([
+            self.x(),
+            self.y(),
+            math.radians(heading),
+            math.radians(heading + self.trailer.rotation())])
+
+        ctrl_point_pos = self.ctrl_point.pos()
+        trailer_len = self.trailer.rect().width()
+        return self.mpc.optimize_controls(
+            line[0],
+            line[1],
+            state,
+            math.radians(self.front_left_wheel.rotation()),
+            self.speed,
+            self.body.rect().width(),
+            self.MAX_RATE,
+            self.MAX_ANGLE,
+            self.MAX_TRAILER_ANGLE,
+            trailer_len,
+            self.TRAILER_OFFSET,
+            (trailer_len - ctrl_point_pos.x(), ctrl_point_pos.y()),
+            self.XTRACK_WEIGHT,
+            self.HEADING_WEIGHT,
+            circle_obstacle,
+            self.circle.rect().width() / 2.)
+
     def move(
             self,
             dt: float,
             line: Tuple[Tuple[float, float], Tuple[float, float]],
-            circle_obstacle: Tuple[float, float, float]):
+            circle_obstacle: Tuple[float, float, float]) -> Union[
+                None, Tuple[
+                    List[Tuple[float, float, float, float]],
+                    List[Tuple[float, float, float, float]]]]:
         """Moves the car based on MPC, by updating its position and orientation
 
         Args:
@@ -161,34 +208,21 @@ class CarModel(QtWidgets.QGraphicsItemGroup):
                 A point: [x,y]
                 B point: [x,y]
             circle_obstacle (Tuple[float, float, float]): description of circle obstacle: x,y,radius
+        Returns:
+            Union[None, Tuple[
+                List[Tuple[float, float, float, float]],
+                List[Tuple[float, float, float, float]]]]: None - no solution or tuple of [states, control_angles]:
+                states : List[Tuple[x, y, heading, trailer_heading],...] - len depends from MPC model
+                control_angles: List[angle,...] - len depends from MPC model
         """
         try:
+            solution = self.predict(line, circle_obstacle)
             heading = self.rotation()
             state = np.array([
                 self.x(),
                 self.y(),
                 math.radians(heading),
                 math.radians(heading + self.trailer.rotation())])
-
-            ctrl_point_pos = self.ctrl_point.pos()
-            trailer_len = self.trailer.rect().width()
-            solution = self.mpc.optimize_controls(
-                line[0],
-                line[1],
-                state,
-                math.radians(self.front_left_wheel.rotation()),
-                self.speed,
-                self.body.rect().width(),
-                self.MAX_RATE,
-                self.MAX_ANGLE,
-                self.MAX_TRAILER_ANGLE,
-                trailer_len,
-                self.TRAILER_OFFSET,
-                (trailer_len - ctrl_point_pos.x(), ctrl_point_pos.y()),
-                self.XTRACK_WEIGHT,
-                self.HEADING_WEIGHT,
-                circle_obstacle,
-                self.circle.rect().width() / 2.)
         except ValueError as e:
             # optimization fails
             LOG.error(e)
@@ -209,3 +243,4 @@ class CarModel(QtWidgets.QGraphicsItemGroup):
         self.setPos(state[0], state[1])
         self.setRotation(math.degrees(state[2]))
         self.trailer.setRotation(math.degrees(state[3] - state[2]))
+        return solution

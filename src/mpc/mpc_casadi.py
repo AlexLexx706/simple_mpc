@@ -6,8 +6,8 @@ import casadi as ca
 class MPCCasadi:
     def __init__(
             self,
-            dt: float = 0.1,
-            steps: int = 10,
+            dt: float = 0.3,
+            steps: int = 30,
             max_iter: int = 50):
         """MPC for controlling trailer points
 

@@ -15,8 +15,11 @@ class Scene(QtWidgets.QGraphicsScene):
     GREED_PEN = QtGui.QPen(QtGui.QColor(230, 230, 230), 2)
     GREED_PEN.setCosmetic(True)
     GRID_SIZE = 10  # Grid size for background grid
-    DT = 0.1  # update car period, sec
+    DT = 1 / 10. # update car period, sec
     CIRCLE_RADIUS = 50.
+
+    PREDICTED_PATH_PEN = QtGui.QPen(QtGui.QColor(255, 0, 0), 2)
+    PREDICTED_PATH_PEN.setCosmetic(True)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -39,16 +42,31 @@ class Scene(QtWidgets.QGraphicsScene):
                 self.CIRCLE_RADIUS * 2),
             self.LINE_PEN)
         self.circle.setPos(100, 0)
+        self.predicted_path = QtWidgets.QGraphicsPathItem()
+        self.predicted_path.setPen(self.PREDICTED_PATH_PEN)
+        self.addItem(self.predicted_path)
 
     def update_car(self):
         line = self.line.line()
         circle_pos = self.circle.pos()
 
         # MPC drive car
-        self.car.move(
+        solution = self.car.move(
             self.DT,
             ((line.x1(), line.y1()), (line.x2(), line.y2())),
             (circle_pos.x(), circle_pos.y(), self.circle.rect().width() / 2.))
+
+        if solution:
+            predicted_path = QtGui.QPainterPath()
+            states = solution[0]
+            predicted_path.moveTo(
+                states[0, 0],
+                states[0, 1])
+            for index in range(states.shape[0]):
+                predicted_path.lineTo(
+                    states[index, 0],
+                    states[index, 1])
+            self.predicted_path.setPath(predicted_path)
 
     def drawBackground(self, painter, rect):
         super().drawBackground(painter, rect)
