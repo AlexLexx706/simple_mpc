@@ -1,4 +1,4 @@
-# Stupid Implementation of MPC for a Front-Wheel Steering Car
+# Implementation of MPC for a Front-Wheel Steering Car on Casadi
 
 This project demonstrates a simple implementation of a Model Predictive Controller (MPC) applied to a car model with front-wheel steering. The car is represented in a 2D space, and the MPC controller optimizes the steering angles to follow a predefined path.
 

@@ -50,9 +50,22 @@ class CarModel(QtWidgets.QGraphicsItemGroup):
     CTRL_POINT_PEN.setCosmetic(True)
     CTRL_POINT_BRUSH = QtCore.Qt.black
 
-    def __init__(self, *args, **kwargs):
+    def __init__(
+            self,
+            circles_num,
+            path_len,
+            dt,
+            steps,
+            max_iter,
+            soft_constrain,
+            *args,
+            **kwargs):
         super().__init__(*args, **kwargs)
         self.speed = self.SPEED
+        self.setFlags(
+            self.ItemIsMovable
+            | self.ItemIsSelectable
+            | self.ItemSendsGeometryChanges)
 
         # set geometry of the car:
         self.body = QtWidgets.QGraphicsRectItem(
@@ -143,21 +156,25 @@ class CarModel(QtWidgets.QGraphicsItemGroup):
         self.ctrl_point.setBrush(self.CTRL_POINT_BRUSH)
 
         # MPC controller
-        self.mpc = mpc_casadi.MPCCasadi()
+        self.mpc = mpc_casadi.MPCCasadi(
+            dt=dt,
+            steps=steps,
+            max_iter=max_iter,
+            soft_constrain=soft_constrain,
+            circles_num=circles_num,
+            path_len=path_len)
 
     def predict(
             self,
-            line: Tuple[Tuple[float, float], Tuple[float, float]],
-            circle_obstacle: Tuple[float, float, float]) -> Tuple[
+            path: List[Tuple[float, float]],
+            circles_obstacle: List[Tuple[float, float, float]]) -> Tuple[
                 List[Tuple[float, float, float, float]],
                 List[Tuple[float, float, float, float]]]:
         """Moves the car based on MPC, by updating its position and orientation
 
         Args:
-            line (Tuple[Tuple[float, float], Tuple[float, float]]): line path description:
-                A point: [x,y]
-                B point: [x,y]
-            circle_obstacle (Tuple[float, float, float]): description of circle obstacle: x,y,radius
+            path List[Tuple[float, float]]: path
+            circles_obstacle List[Tuple[float, float, float]] : descriptions of circle obstacles: [[x,y,radius],...]
         Returns:
             Tuple[
                 List[Tuple[float, float, float, float]],
@@ -175,8 +192,7 @@ class CarModel(QtWidgets.QGraphicsItemGroup):
         ctrl_point_pos = self.ctrl_point.pos()
         trailer_len = self.trailer.rect().width()
         return self.mpc.optimize_controls(
-            line[0],
-            line[1],
+            path,
             state,
             math.radians(self.front_left_wheel.rotation()),
             self.speed,
@@ -189,14 +205,14 @@ class CarModel(QtWidgets.QGraphicsItemGroup):
             (trailer_len - ctrl_point_pos.x(), ctrl_point_pos.y()),
             self.XTRACK_WEIGHT,
             self.HEADING_WEIGHT,
-            circle_obstacle,
+            circles_obstacle,
             self.circle.rect().width() / 2.)
 
     def move(
             self,
             dt: float,
             line: Tuple[Tuple[float, float], Tuple[float, float]],
-            circle_obstacle: Tuple[float, float, float]) -> Union[
+            circles_obstacle: List[Tuple[float, float, float]]) -> Union[
                 None, Tuple[
                     List[Tuple[float, float, float, float]],
                     List[Tuple[float, float, float, float]]]]:
@@ -207,7 +223,7 @@ class CarModel(QtWidgets.QGraphicsItemGroup):
             line (Tuple[Tuple[float, float], Tuple[float, float]]): line path description:
                 A point: [x,y]
                 B point: [x,y]
-            circle_obstacle (Tuple[float, float, float]): description of circle obstacle: x,y,radius
+            circles_obstacle List[Tuple[float, float, float]] : descriptions of circle obstacles: [[x,y,radius],...]
         Returns:
             Union[None, Tuple[
                 List[Tuple[float, float, float, float]],
@@ -216,7 +232,7 @@ class CarModel(QtWidgets.QGraphicsItemGroup):
                 control_angles: List[angle,...] - len depends from MPC model
         """
         try:
-            solution = self.predict(line, circle_obstacle)
+            solution = self.predict(line, circles_obstacle)
             heading = self.rotation()
             state = np.array([
                 self.x(),

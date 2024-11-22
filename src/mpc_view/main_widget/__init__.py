@@ -18,7 +18,7 @@ class MainWidget(QtWidgets.QMainWindow):
         self.graphics_view.setScene(self.scene)
 
         self.car = self.scene.car
-        self.circle = self.scene.circle
+        self.circle = self.scene.circles[0]
 
         # init values in UI
         prev_signal = self.doubleSpinBox_speed.blockSignals(True)
@@ -54,13 +54,11 @@ class MainWidget(QtWidgets.QMainWindow):
         # Move the car based on optimized steering angles
         self.scene.update_car()
         prev_signal = self.doubleSpinBox_heading.blockSignals(True)
-        self.doubleSpinBox_heading.setValue(
-            math.degrees(self.car.rotation()))
+        self.doubleSpinBox_heading.setValue(self.car.rotation())
         self.doubleSpinBox_heading.blockSignals(prev_signal)
 
         prev_signal = self.doubleSpinBox_trailer_angle.blockSignals(True)
-        self.doubleSpinBox_trailer_angle.setValue(
-            math.degrees(self.car.trailer.rotation()))
+        self.doubleSpinBox_trailer_angle.setValue(self.car.trailer.rotation())
         self.doubleSpinBox_trailer_angle.blockSignals(prev_signal)
 
     @QtCore.pyqtSlot(float)
