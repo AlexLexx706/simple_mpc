@@ -7,7 +7,6 @@ import math
 class MPCCasadi:
     def __init__(
             self,
-            dt: float,
             steps: int,
             max_iter: int,
             soft_constrain: bool,
@@ -24,11 +23,9 @@ class MPCCasadi:
                 false - Hard constraint used;
             circles_num (int): - the number of circle constraints.
         """
-        self.dt = dt
         self.steps = steps
         self.last_states = None
         self.mpc = self.build_mpc(
-            dt,
             steps,
             max_iter,
             soft_constrain,
@@ -37,16 +34,14 @@ class MPCCasadi:
 
     @staticmethod
     def build_mpc(
-            dt: float,
             steps: int,
             max_iter: int,
             soft_constrain: bool,
             circles_num: int,
-            path_len:int) -> None:
+            path_len: int) -> None:
         """Build MPC for controlling trailer points
 
         Args:
-            dt (float, optional): integration step, s. Defaults to 0.5.
             steps (int, optional): number of steps - horizon prediction. Defaults to 10.
             max_iter (int, optional): limit of max iterations for solver. Defaults to 50.
             soft_constrain (bool):
@@ -64,6 +59,7 @@ class MPCCasadi:
         angle = opti.variable(steps + 1)
 
         # initial values:
+        dt = opti.parameter()
         state_0 = opti.parameter(4)
         angle_0 = opti.parameter()
         speed = opti.parameter()
@@ -97,17 +93,19 @@ class MPCCasadi:
                 pos[1] - ca.sin(states[i, 2]) * trailer_offset - ca.sin(states[i, 3]) * trailer_length)
 
             # adding xtrack, heading_error to cost function
-            xtrack, heading_error = MPCCasadi.get_track_cost(path, control_point, states[i, 3])
-            common_cost +=  xtrack_weight * xtrack **2
-            common_cost +=  heading_weight * heading_error **2
+            xtrack, heading_error = MPCCasadi.get_track_cost(
+                path, control_point, states[i, 3])
+            common_cost += xtrack_weight * xtrack ** 2
+            common_cost += heading_weight * heading_error ** 2
 
             if soft_constrain:
                 # Adding a constraint for an obstacle described by a circle.
                 pos = states[i, :2]
                 for i in range(circles_num):
-                    c_pos = circles[i,:2]
+                    c_pos = circles[i, :2]
                     distance = ca.norm_2(pos - c_pos)
-                    distance_cost = 1000. ** (-(distance - (circles[i, 2] + radius)))
+                    distance_cost = 1000. ** (-(distance -
+                                              (circles[i, 2] + radius)))
                     common_cost += distance_cost
 
         opti.minimize(common_cost)
@@ -135,7 +133,8 @@ class MPCCasadi:
                 pos = states[i, :2]
                 for i in range(circles_num):
                     c_pos = circles[i, :2]
-                    opti.subject_to(ca.norm_2(pos - c_pos) >= (circles[i, 2] + radius))
+                    opti.subject_to(ca.norm_2(pos - c_pos) >=
+                                    (circles[i, 2] + radius))
 
         # initial constrain:
         opti.subject_to(states[0, :] == state_0.T)
@@ -149,11 +148,12 @@ class MPCCasadi:
                 'ipopt.sb': 'yes'},
             {
                 "max_iter": max_iter,
-                'acceptable_tol':0.001}
+                'acceptable_tol': 0.001}
         )
 
         return opti.to_function(
             'MPC', [
+                dt,
                 states,
                 path,
                 state_0,
@@ -173,7 +173,7 @@ class MPCCasadi:
             [states, angle])
 
     @staticmethod
-    def get_track_values(a:Tuple[float, float], b:Tuple[float, float], pos:Tuple[float, float], heading:float)->Tuple[float, float]:
+    def get_track_values(a: Tuple[float, float], b: Tuple[float, float], pos: Tuple[float, float], heading: float) -> Tuple[float, float]:
         """Get track values
 
         Args:
@@ -190,18 +190,18 @@ class MPCCasadi:
         denominator = ba[0] ** 2 + ba[1] ** 2
         t = ((pos[0] - a[0]) * ba[0] + (pos[1] - a[1]) * ba[1]) / denominator
 
-
         ba_norm = ba / ca.norm_2(ba)
         xtrack = ca.norm_2(pos - (a + (ba_norm @ (pos - a).T) * ba_norm))
-        heading = ca.acos(ca.horzcat(ca.cos(heading), ca.sin(heading)) @ ba_norm.T)
+        heading = ca.acos(ca.horzcat(
+            ca.cos(heading), ca.sin(heading)) @ ba_norm.T)
         heading = ca.if_else(heading > ca.pi / 2., ca.pi - heading, heading)
         return xtrack, heading, t
 
     @staticmethod
     def get_track_cost(
-            path:List[Tuple[float, float]],
-            control_point:Tuple[float, float],
-            heading:float)->Tuple[float, float]:
+            path: List[Tuple[float, float]],
+            control_point: Tuple[float, float],
+            heading: float) -> Tuple[float, float]:
         """Calculate cost for track
 
         Args:
@@ -219,7 +219,8 @@ class MPCCasadi:
         for i in range(1, path.shape[0]):
             a = path[i - 1, :]
             b = path[i, :]
-            xt, he, t = MPCCasadi.get_track_values(a, b, control_point, heading)
+            xt, he, t = MPCCasadi.get_track_values(
+                a, b, control_point, heading)
 
             # save first xt and he
             if i == 1:
@@ -233,13 +234,16 @@ class MPCCasadi:
         last_len = ca.norm_2(control_point - path[i, :])
 
         # if out size path
-        xt = ca.if_else(min_xt == ca.inf, ca.if_else(first_len < last_len, first_xt, xt), min_xt)
-        he = ca.if_else(min_xt == ca.inf, ca.if_else(first_len < last_len, first_he, he), min_he)
+        xt = ca.if_else(min_xt == ca.inf, ca.if_else(
+            first_len < last_len, first_xt, xt), min_xt)
+        he = ca.if_else(min_xt == ca.inf, ca.if_else(
+            first_len < last_len, first_he, he), min_he)
 
         return xt, he
 
     def optimize_controls(
             self,
+            dt: float,
             path: List[Tuple[float, float]],
             state_0: Tuple[float, float, float, float],
             angle_0: float,
@@ -260,8 +264,8 @@ class MPCCasadi:
         """Run MPC for car model
 
         Args:
-            a (Tuple[float, float]): A point of line
-            b (Tuple[float, float]): B point of line
+            dt (float): - dt of MPC, sec
+            path: List[Tuple[float, float]] - path points
             state_0 (Tuple[float, float, float, float]): initial state: [x, y, heading, trailer_heading]
             angle_0 (float): initial steering angle, rad
             speed (float): speed, m
@@ -285,7 +289,7 @@ class MPCCasadi:
         """
 
         # first init
-        if self.last_states is  None:
+        if self.last_states is None:
             states = [[
                 state_0[0],
                 state_0[1],
@@ -294,14 +298,15 @@ class MPCCasadi:
 
             for _ in range(1, self.steps + 1):
                 states.append([
-                    states[-1][0] + math.cos(states[-1][2]) * speed * self.dt,
-                    states[-1][1] + math.sin(states[-1][2]) * speed * self.dt,
+                    states[-1][0] + math.cos(states[-1][2]) * speed * dt,
+                    states[-1][1] + math.sin(states[-1][2]) * speed * dt,
                     states[-1][2],
                     states[-1][3]])
 
             self.last_states = ca.DM(states)
 
         sol = self.mpc(
+            dt,
             self.last_states,
             path,
             state_0,
@@ -320,6 +325,7 @@ class MPCCasadi:
             radius)
         self.last_states[:-1] = sol[0][1:]
         return sol
+
 
 if __name__ == "__main__":
     mpc = MPCCasadi()

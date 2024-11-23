@@ -27,8 +27,12 @@ class Scene(QtWidgets.QGraphicsScene):
 
     PREDICTED_PATH_PEN = QtGui.QPen(QtGui.QColor(255, 0, 0), 2)
     PREDICTED_PATH_PEN.setCosmetic(True)
-    FONT = QtGui.QFont("Times", 16, QtGui.QFont.Bold);
-    TEXT_OFFSET = QtCore.QPointF(-10, -30)
+
+    # default MPC settings
+    MPC_STEPS = 10
+    MPC_DT = 0.1
+    MPC_SOFT_CONSTRAIN = True
+    MPC_MAX_ITER = 50
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -37,17 +41,22 @@ class Scene(QtWidgets.QGraphicsScene):
         self.circles = []
 
         # Add a black line to the scene representing the path
-        self.add_path([(-100, -200), (-100, -20), (100, -20), (200, -40), (300, 0)])
+        self.add_path([
+            (-100, -200),
+            (-100, -20),
+            (100, -20),
+            (200, -40),
+            (300, 0)])
 
         # creating circle
-        self.add_circle([100, 50], self.CIRCLE_RADIUS)
+        self.add_circle([100, 50], self.CIRCLE_RADIUS, False)
 
         # Create car model
         self.car = car.CarModel(
-            dt=0.3,
-            steps=10,
-            max_iter=5,
-            soft_constrain=True,
+            dt=self.MPC_DT,
+            steps=self.MPC_STEPS,
+            max_iter=self.MPC_MAX_ITER,
+            soft_constrain=self.MPC_SOFT_CONSTRAIN,
             circles_num=len(self.circles),
             path_len=len(self.points_path))
         self.car.setRotation(-10)
@@ -57,11 +66,26 @@ class Scene(QtWidgets.QGraphicsScene):
         self.predicted_path.setPen(self.PREDICTED_PATH_PEN)
         self.addItem(self.predicted_path)
 
-    def add_circle(self, pos:Tuple[float, float], radius:float):
+        # menu for objects manipulations
+        self.widget = None
+        self.menu = QtWidgets.QMenu()
+        self.action_add_point = QtWidgets.QAction("Add path point", self.menu)
+        self.menu.addAction(self.action_add_point)
+
+        self.action_add_circle = QtWidgets.QAction(
+            "Add circle point", self.menu)
+        self.menu.addAction(self.action_add_circle)
+
+        self.action_remove_object = QtWidgets.QAction(
+            "Remove selected objects", self.menu)
+        self.menu.addAction(self.action_remove_object)
+
+    def add_circle(self, pos: Tuple[float, float], radius: float, rebuild_mpc: bool):
         """Add circle to the scene
         Args:
             pos (Tuple[float, float]): position
             radius (float): radius
+            rebuild_mpc (bool): true - rebuild mpc, false - not
         """
         circle = self.addEllipse(
             QtCore.QRectF(
@@ -77,6 +101,8 @@ class Scene(QtWidgets.QGraphicsScene):
             | QtWidgets.QGraphicsRectItem.ItemSendsGeometryChanges)
         self.circles.append(circle)
 
+        if rebuild_mpc:
+            self.rebuild_mpc()
 
     def add_path(self, points: List[Tuple[float, float]]):
         """Add editable path to the scene
@@ -87,44 +113,16 @@ class Scene(QtWidgets.QGraphicsScene):
             raise RuntimeError("len(points) < 2")
 
         index = 0
-        prev_pos = points[0]
-        prev_end_point = line_endpoint.LineEndpoint()
-        prev_end_point.setPos(prev_pos[0], prev_pos[1])
-        self.addItem(prev_end_point)
-
-        text = QtWidgets.QGraphicsSimpleTextItem(f'{index}', prev_end_point)
-        index += 1
-        text.setFont(self.FONT)
-        text.setFlag(QtWidgets.QGraphicsItem.ItemIgnoresTransformations, True)
-        text.setPos(self.TEXT_OFFSET)
-
-        self.points_path = [prev_end_point]
+        pos = points[0]
+        endpoint = line_endpoint.LineEndpoint(index)
+        endpoint.setPos(pos[0], pos[1])
+        self.addItem(endpoint)
+        self.points_path = [endpoint]
 
         for pos in points[1:]:
-            line = editable_line.EditableLine(
-                prev_pos[0],
-                prev_pos[1],
-                pos[0],
-                pos[1])
-            self.addItem(line)
+            self.add_path_point(pos, False)
 
-            cur_end_point = line_endpoint.LineEndpoint()
-            self.addItem(cur_end_point)
-            self.points_path.append(cur_end_point)
-            cur_end_point.setPos(pos[0], pos[1])
-            prev_end_point.callbacks.append(line.move_a_point)
-            cur_end_point.callbacks.append(line.move_b_point)
-
-            text = QtWidgets.QGraphicsSimpleTextItem(f'{index}', cur_end_point)
-            index += 1
-            text.setFont(self.FONT)
-            text.setFlag(QtWidgets.QGraphicsItem.ItemIgnoresTransformations, True)
-            text.setPos(self.TEXT_OFFSET)
-
-            prev_pos = pos
-            prev_end_point = cur_end_point
-
-    def get_path(self)->List[Tuple[float, float]]:
+    def get_path(self) -> List[Tuple[float, float]]:
         """return path
 
         Returns:
@@ -136,7 +134,7 @@ class Scene(QtWidgets.QGraphicsScene):
             path.append((pos.x(), pos.y()))
         return np.array(path)
 
-    def get_circles(self)->List[Tuple[float, float, float]]:
+    def get_circles(self) -> List[Tuple[float, float, float]]:
         """return circles descriptions
 
         Returns:
@@ -189,14 +187,179 @@ class Scene(QtWidgets.QGraphicsScene):
         for y in range(int(top), int(bottom), self.GRID_SIZE):
             painter.drawLine(left, y, right, y)
 
-    def mousePressEvent(self, event):
-        pos = event.scenePos()
-        pos = ca.DM([pos.x(), pos.y()]).T
-        path = ca.DM(self.get_path())
+    # def mousePressEvent(self, event):
+    #     pos = event.scenePos()
+    #     pos = ca.DM([pos.x(), pos.y()]).T
+    #     path = ca.DM(self.get_path())
 
-        xt, he = MPCCasadi.get_track_cost(
-            path=path,
-            control_point=pos,
-            heading=0)
-        print(xt, he)
-        return super().mousePressEvent(event)
+    #     xt, he = MPCCasadi.get_track_cost(
+    #         path=path,
+    #         control_point=pos,
+    #         heading=0)
+    #     print(xt, he)
+    #     return super().mousePressEvent(event)
+
+    def contextMenuEvent(self, event: QtWidgets.QGraphicsSceneContextMenuEvent):
+        """Context menu handler
+
+        Args:
+            event (QtWidgets.QGraphicsSceneContextMenuEvent): scene event
+        """
+
+        super().contextMenuEvent(event)
+        if not event.isAccepted():
+            self.widget = event.widget()
+            # Отображение меню в позиции клика
+            pos = event.scenePos()
+            pos = [pos.x(), pos.y()]
+
+            action = self.menu.exec_(event.screenPos())
+
+            if action == self.action_add_point:
+                self.add_path_point(pos, True)
+            elif action == self.action_add_circle:
+                self.add_circle(pos, self.CIRCLE_RADIUS, True)
+            elif action == self.action_remove_object:
+                self.remove_selected()
+
+    def add_path_point(self, pos: Tuple[float, float], rebuild_mpc: bool):
+        """adding new points to path
+
+        Args:
+            pos (Tuple[float, float]): new point pos:[x,y]
+            rebuild_mpc (bool): true - rebuild car mpc, false - not
+        """
+        prev_end_point = self.points_path[-1]
+
+        # line adding
+        line = editable_line.EditableLine(
+            prev_end_point.pos().x(),
+            prev_end_point.pos().y(),
+            pos[0],
+            pos[1])
+        self.addItem(line)
+
+        # endpoint adding
+        end_point = line_endpoint.LineEndpoint(len(self.points_path))
+        self.addItem(end_point)
+        end_point.setPos(pos[0], pos[1])
+        prev_end_point.bind_line(line, line.move_a_point)
+        end_point.bind_line(line, line.move_b_point)
+
+        # adding end-point to points_path
+        self.points_path.append(end_point)
+
+        if rebuild_mpc:
+            self.rebuild_mpc()
+
+    def remove_selected(self):
+        """remove selected objects
+        """
+        for obj in self.selectedItems():
+            # removing circle
+            if isinstance(obj, QtWidgets.QGraphicsEllipseItem):
+                try:
+                    self.circles.remove(obj)
+                    self.removeItem(obj)
+                    self.rebuild_mpc()
+                except ValueError as e:
+                    LOG.error(e)
+            # remove end-point of line
+            elif isinstance(obj, line_endpoint.LineEndpoint):
+                self.remove_endpoint(obj)
+
+    def remove_endpoint(self, endpoint: line_endpoint.LineEndpoint) -> None:
+        """Removing of endpoint
+
+        Args:
+            endpoint (line_endpoint.LineEndpoint): endpoint object
+        """
+        if len(self.points_path) == 2:
+            if self.widget:
+                QtWidgets.QMessageBox.warning(
+                    self.widget, 'Warning', "Can`t remove last point of line!!!")
+            else:
+                raise RuntimeError(
+                    'Warning', "Can`t remove last point of line!!!")
+            return
+
+        # tail of the path
+        if len(endpoint.lines) == 1:
+            line = endpoint.lines[0][0]
+            # finding of other endpoint
+            other_endpoint = self.find_other_endpoint(line, endpoint)
+            self.remove_line_from_endpoint(other_endpoint, line)
+            self.points_path.remove(endpoint)
+            self.removeItem(line)
+            self.removeItem(endpoint)
+        # middle of the path
+        else:
+            line = endpoint.lines[0][0]
+            endpoint_a = self.find_other_endpoint(line, endpoint)
+            self.remove_line_from_endpoint(endpoint_a, line)
+            self.removeItem(line)
+
+            line = endpoint.lines[1][0]
+            endpoint_b = self.find_other_endpoint(line, endpoint)
+            self.remove_line_from_endpoint(endpoint_b, line)
+            self.removeItem(line)
+
+            self.points_path.remove(endpoint)
+            self.removeItem(endpoint)
+
+            # adding new line:
+            # line adding
+            line = editable_line.EditableLine(
+                endpoint_a.pos().x(),
+                endpoint_a.pos().y(),
+                endpoint_b.pos().x(),
+                endpoint_b.pos().y())
+            self.addItem(line)
+            endpoint_a.bind_line(line, line.move_a_point)
+            endpoint_b.bind_line(line, line.move_b_point)
+
+        # need to update text
+        for index, endpoint in enumerate(self.points_path):
+            endpoint.text.setText(f"{index}")
+        self.rebuild_mpc()
+
+    def rebuild_mpc(self):
+        """rebuilding of mpc based on new parameters
+        """
+        self.car.rebuild_mpc(
+            dt=self.MPC_DT,
+            steps=self.MPC_STEPS,
+            max_iter=self.MPC_MAX_ITER,
+            soft_constrain=self.MPC_SOFT_CONSTRAIN,
+            circles_num=len(self.circles),
+            path_len=len(self.points_path))
+
+    @staticmethod
+    def find_other_endpoint(line: editable_line.EditableLine, endpoint: line_endpoint.LineEndpoint):
+        """finding other endpoint in line
+
+        Args:
+            line (editable_line.EditableLine): line
+            endpoint (line_endpoint.LineEndpoint): endpoint for exclude
+
+        Returns:
+            _type_: other endpoint
+        """
+        if len(line.end_points) < 2:
+            raise RuntimeError("wrong logic: len(line.end_points) < 2")
+        for other_endpoint in line.end_points:
+            if other_endpoint is not endpoint:
+                return other_endpoint
+
+    @staticmethod
+    def remove_line_from_endpoint(endpoint: line_endpoint.LineEndpoint, line: editable_line.EditableLine):
+        """removeing of line from endpoint
+        Args:
+            endpoint (line_endpoint.LineEndpoint): endpoint
+            line (editable_line.EditableLine): line
+        """
+        for index, desc in enumerate(endpoint.lines):
+            # need to more this line
+            if desc[0] is line:
+                endpoint.lines.pop(index)
+                return

@@ -11,7 +11,10 @@
    </rect>
   </property>
   <property name="windowTitle">
-   <string>MPC_View</string>
+   <string>MPC - Car with trailer</string>
+  </property>
+  <property name="toolTip">
+   <string/>
   </property>
   <widget class="QWidget" name="centralwidget">
    <layout class="QVBoxLayout" name="verticalLayout">
@@ -29,21 +32,86 @@
         <enum>QFrame::Raised</enum>
        </property>
        <layout class="QGridLayout" name="gridLayout">
-        <item row="5" column="0">
-         <widget class="QLabel" name="label_5">
+        <item row="11" column="1">
+         <widget class="QDoubleSpinBox" name="doubleSpinBox_heading_weight">
+          <property name="toolTip">
+           <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;weight of heading error in cost function&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+          </property>
+          <property name="minimum">
+           <double>0.000000000000000</double>
+          </property>
+          <property name="maximum">
+           <double>1000000000000000.000000000000000</double>
+          </property>
+         </widget>
+        </item>
+        <item row="6" column="0">
+         <widget class="QLabel" name="label_14">
           <property name="text">
-           <string>circle_y</string>
+           <string>max_rate:</string>
+          </property>
+         </widget>
+        </item>
+        <item row="10" column="0">
+         <widget class="QLabel" name="label_11">
+          <property name="text">
+           <string>xtrack_weight:</string>
+          </property>
+         </widget>
+        </item>
+        <item row="8" column="1">
+         <widget class="QDoubleSpinBox" name="doubleSpinBox_max_trailer_angle">
+          <property name="toolTip">
+           <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;max angle betwin car heading and trailer heading, degree&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+          </property>
+          <property name="minimum">
+           <double>10.000000000000000</double>
+          </property>
+          <property name="maximum">
+           <double>90.000000000000000</double>
+          </property>
+         </widget>
+        </item>
+        <item row="4" column="1">
+         <widget class="QDoubleSpinBox" name="doubleSpinBox_wheel_base">
+          <property name="toolTip">
+           <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;wheel base of car, m&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+          </property>
+          <property name="minimum">
+           <double>1.000000000000000</double>
+          </property>
+          <property name="maximum">
+           <double>30.000000000000000</double>
+          </property>
+         </widget>
+        </item>
+        <item row="15" column="1">
+         <widget class="QDoubleSpinBox" name="doubleSpinBox_trailer_angle">
+          <property name="toolTip">
+           <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;angle betwin car body heading and trailer geading, degree&lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+          </property>
+          <property name="minimum">
+           <double>-999999999999999.000000000000000</double>
+          </property>
+          <property name="maximum">
+           <double>999999999999999.000000000000000</double>
           </property>
          </widget>
         </item>
         <item row="0" column="0" colspan="2">
          <widget class="QPushButton" name="pushButton_start">
+          <property name="cursor">
+           <cursorShape>BusyCursor</cursorShape>
+          </property>
+          <property name="toolTip">
+           <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Start/stop MPC simulation of Car with trailer&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+          </property>
           <property name="text">
            <string>start</string>
           </property>
          </widget>
         </item>
-        <item row="7" column="1">
+        <item row="18" column="1">
          <spacer name="verticalSpacer">
           <property name="orientation">
            <enum>Qt::Vertical</enum>
@@ -56,56 +124,57 @@
           </property>
          </spacer>
         </item>
-        <item row="1" column="1">
-         <widget class="QDoubleSpinBox" name="doubleSpinBox_heading">
-          <property name="minimum">
-           <double>-999999999999999.000000000000000</double>
-          </property>
-          <property name="maximum">
-           <double>999999999999999.000000000000000</double>
+        <item row="14" column="0">
+         <widget class="QLabel" name="label_2">
+          <property name="text">
+           <string>Heading</string>
           </property>
          </widget>
         </item>
-        <item row="2" column="1">
-         <widget class="QDoubleSpinBox" name="doubleSpinBox_trailer_angle">
-          <property name="minimum">
-           <double>-999999999999999.000000000000000</double>
-          </property>
-          <property name="maximum">
-           <double>999999999999999.000000000000000</double>
-          </property>
-         </widget>
-        </item>
-        <item row="5" column="1">
-         <widget class="QDoubleSpinBox" name="doubleSpinBox_circle_y">
-          <property name="enabled">
-           <bool>true</bool>
-          </property>
-          <property name="minimum">
-           <double>-999999999999999.000000000000000</double>
-          </property>
-          <property name="maximum">
-           <double>999999999999999.000000000000000</double>
+        <item row="1" column="0">
+         <widget class="QLabel" name="label_7">
+          <property name="text">
+           <string>prediction horizon:</string>
           </property>
          </widget>
         </item>
         <item row="4" column="0">
-         <widget class="QLabel" name="label_4">
+         <widget class="QLabel" name="label_15">
           <property name="text">
-           <string>circle_x</string>
+           <string>wheel_base:</string>
           </property>
          </widget>
         </item>
-        <item row="6" column="1">
-         <widget class="QDoubleSpinBox" name="doubleSpinBox_circle_radius">
-          <property name="enabled">
-           <bool>true</bool>
+        <item row="9" column="1">
+         <widget class="QDoubleSpinBox" name="doubleSpinBox_trailer_len">
+          <property name="toolTip">
+           <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;length of the trailer, m&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
           </property>
           <property name="minimum">
-           <double>-999999999999999.000000000000000</double>
+           <double>1.000000000000000</double>
           </property>
           <property name="maximum">
-           <double>999999999999999.000000000000000</double>
+           <double>30.000000000000000</double>
+          </property>
+         </widget>
+        </item>
+        <item row="7" column="0">
+         <widget class="QLabel" name="label_9">
+          <property name="text">
+           <string>max_angle:</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="1">
+         <widget class="QSpinBox" name="spinBox_prediction_horizon">
+          <property name="toolTip">
+           <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;number of steps in prediction horizon&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+          </property>
+          <property name="minimum">
+           <number>5</number>
+          </property>
+          <property name="maximum">
+           <number>100</number>
           </property>
          </widget>
         </item>
@@ -116,29 +185,74 @@
           </property>
          </widget>
         </item>
-        <item row="2" column="0">
-         <widget class="QLabel" name="label">
-          <property name="text">
-           <string>Trailer angle</string>
+        <item row="7" column="1">
+         <widget class="QDoubleSpinBox" name="doubleSpinBox_max_angle">
+          <property name="toolTip">
+           <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Max steering angle, degree&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+          </property>
+          <property name="minimum">
+           <double>5.000000000000000</double>
+          </property>
+          <property name="maximum">
+           <double>90.000000000000000</double>
           </property>
          </widget>
         </item>
-        <item row="1" column="0">
-         <widget class="QLabel" name="label_2">
-          <property name="text">
-           <string>Heading</string>
+        <item row="10" column="1">
+         <widget class="QDoubleSpinBox" name="doubleSpinBox_xtrack_weight">
+          <property name="toolTip">
+           <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;weight of xtrack in cost function&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+          </property>
+          <property name="minimum">
+           <double>0.000000000000000</double>
+          </property>
+          <property name="maximum">
+           <double>99999999999999991611392.000000000000000</double>
           </property>
          </widget>
         </item>
-        <item row="6" column="0">
+        <item row="9" column="0">
+         <widget class="QLabel" name="label_13">
+          <property name="text">
+           <string>trailer_len:</string>
+          </property>
+         </widget>
+        </item>
+        <item row="17" column="0">
          <widget class="QLabel" name="label_6">
           <property name="text">
            <string>circle_radius:</string>
           </property>
          </widget>
         </item>
+        <item row="15" column="0">
+         <widget class="QLabel" name="label">
+          <property name="text">
+           <string>Trailer angle</string>
+          </property>
+         </widget>
+        </item>
+        <item row="17" column="1">
+         <widget class="QDoubleSpinBox" name="doubleSpinBox_circle_radius">
+          <property name="enabled">
+           <bool>true</bool>
+          </property>
+          <property name="toolTip">
+           <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;radius of circular constrains&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+          </property>
+          <property name="minimum">
+           <double>0.000000000000000</double>
+          </property>
+          <property name="maximum">
+           <double>999999999999999.000000000000000</double>
+          </property>
+         </widget>
+        </item>
         <item row="3" column="1">
          <widget class="QDoubleSpinBox" name="doubleSpinBox_speed">
+          <property name="toolTip">
+           <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;speed of car in m/s&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+          </property>
           <property name="minimum">
            <double>-30.000000000000000</double>
           </property>
@@ -147,16 +261,73 @@
           </property>
          </widget>
         </item>
-        <item row="4" column="1">
-         <widget class="QDoubleSpinBox" name="doubleSpinBox_circle_x">
-          <property name="enabled">
-           <bool>true</bool>
+        <item row="6" column="1">
+         <widget class="QDoubleSpinBox" name="doubleSpinBox_max_rate">
+          <property name="toolTip">
+           <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;max angular rate of car body degree/s&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+          </property>
+          <property name="minimum">
+           <double>10.000000000000000</double>
+          </property>
+          <property name="maximum">
+           <double>180.000000000000000</double>
+          </property>
+         </widget>
+        </item>
+        <item row="11" column="0">
+         <widget class="QLabel" name="label_12">
+          <property name="text">
+           <string>heading_weight:</string>
+          </property>
+         </widget>
+        </item>
+        <item row="8" column="0">
+         <widget class="QLabel" name="label_10">
+          <property name="text">
+           <string>max_trailer_angle:</string>
+          </property>
+         </widget>
+        </item>
+        <item row="13" column="0" colspan="2">
+         <widget class="Line" name="line">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+         </widget>
+        </item>
+        <item row="14" column="1">
+         <widget class="QDoubleSpinBox" name="doubleSpinBox_heading">
+          <property name="toolTip">
+           <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;heading of car body, degree&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
           </property>
           <property name="minimum">
            <double>-999999999999999.000000000000000</double>
           </property>
           <property name="maximum">
            <double>999999999999999.000000000000000</double>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="0">
+         <widget class="QLabel" name="label_8">
+          <property name="text">
+           <string>dt:</string>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="1">
+         <widget class="QDoubleSpinBox" name="doubleSpinBox_dt">
+          <property name="toolTip">
+           <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Integration step of MPC, sec&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+          </property>
+          <property name="minimum">
+           <double>0.000000000000000</double>
+          </property>
+          <property name="maximum">
+           <double>2.000000000000000</double>
+          </property>
+          <property name="singleStep">
+           <double>0.100000000000000</double>
           </property>
          </widget>
         </item>

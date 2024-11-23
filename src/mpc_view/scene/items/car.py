@@ -32,6 +32,7 @@ class CarModel(QtWidgets.QGraphicsItemGroup):
 
     XTRACK_WEIGHT = 1.
     HEADING_WEIGHT = 30
+    DT = 0.1
 
     LINE_PEN = QtGui.QPen(QtGui.QColor(0, 0, 0), 2)
     LINE_PEN.setCosmetic(True)
@@ -52,15 +53,23 @@ class CarModel(QtWidgets.QGraphicsItemGroup):
 
     def __init__(
             self,
-            circles_num,
-            path_len,
-            dt,
-            steps,
-            max_iter,
-            soft_constrain,
-            *args,
-            **kwargs):
-        super().__init__(*args, **kwargs)
+            circles_num: int,
+            path_len: int,
+            dt: float,
+            steps: int,
+            max_iter: int,
+            soft_constrain: bool):
+        """Create new car with mpc
+
+        Args:
+            circles_num (int): number of circle constrain
+            path_len (int): number of path points
+            dt (float): dt
+            steps (int): number of prediction horizon
+            max_iter (int): sorver settings
+            soft_constrain (bool): type of constrain
+        """
+        super().__init__()
         self.speed = self.SPEED
         self.setFlags(
             self.ItemIsMovable
@@ -157,7 +166,79 @@ class CarModel(QtWidgets.QGraphicsItemGroup):
 
         # MPC controller
         self.mpc = mpc_casadi.MPCCasadi(
-            dt=dt,
+            steps=steps,
+            max_iter=max_iter,
+            soft_constrain=soft_constrain,
+            circles_num=circles_num,
+            path_len=path_len)
+
+    def set_wheel_base(self, wheel_base: float):
+        """setup wheel_base
+
+        Args:
+            wheel_base (float): wheel base, m
+        """
+        rect = self.body.rect()
+        rect.setWidth(wheel_base)
+        self.body.setRect(rect)
+        self.front_left_wheel.setPos(wheel_base, -self.WIDTH/2)
+        self.front_right_wheel.setPos(wheel_base, self.WIDTH/2)
+
+    def get_wheel_base(self) -> float:
+        """return wheel base
+
+        Returns:
+            _type_: wheel base
+        """
+        return self.body.rect().width()
+
+    def set_trailer_len(self, trailer_len: float):
+        """set trailer len
+
+        Args:
+            trailer_len (float): trailer len
+        """
+        self.trailer.setRect(
+            -trailer_len,
+            -self.TRAILER_WIDTH / 2.,
+            trailer_len,
+            self.TRAILER_WIDTH)
+
+        self.trailer_left_wheel.setPos(
+            -trailer_len,
+            -self.TRAILER_WIDTH / 2.)
+
+        self.trailer_right_wheel.setPos(
+            -trailer_len,
+            self.TRAILER_WIDTH / 2.)
+
+    def get_trailer_len(self) -> float:
+        """return trailer len
+
+        Returns:
+            float: trailer len
+        """
+        return self.trailer.rect().width()
+
+    def rebuild_mpc(
+            self,
+            circles_num: int,
+            path_len: int,
+            dt: float,
+            steps: int,
+            max_iter: int,
+            soft_constrain: bool):
+        """Create new car with mpc
+
+        Args:
+            circles_num (int): number of circle constrain
+            path_len (int): number of path points
+            dt (float): dt
+            steps (int): number of prediction horizon
+            max_iter (int): sorver settings
+            soft_constrain (bool): type of constrain
+        """
+        self.mpc = mpc_casadi.MPCCasadi(
             steps=steps,
             max_iter=max_iter,
             soft_constrain=soft_constrain,
@@ -192,6 +273,7 @@ class CarModel(QtWidgets.QGraphicsItemGroup):
         ctrl_point_pos = self.ctrl_point.pos()
         trailer_len = self.trailer.rect().width()
         return self.mpc.optimize_controls(
+            self.DT,
             path,
             state,
             math.radians(self.front_left_wheel.rotation()),
