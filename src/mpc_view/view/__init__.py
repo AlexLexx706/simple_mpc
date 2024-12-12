@@ -2,18 +2,22 @@
 # -*- coding: utf-8 -*-
 import os
 import math
-from PyQt5 import QtWidgets, uic, QtCore
-from mpc_view import scene
+from PyQt5 import QtWidgets, uic, QtCore, QtGui
+from mpc_view.view import scene
 
 
-class MainWidget(QtWidgets.QMainWindow):
+class View(QtWidgets.QFrame):
     DT = 0.1
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         uic.loadUi(
-            os.path.join(os.path.split(__file__)[0], "main_widget.ui"),
+            os.path.join(os.path.split(__file__)[0], "view.ui"),
             self)
+        # self.graphics_view.installEventFilter(self)
+        self.graphics_view.wheelEvent = self.wheelEvent_handler
+        self.graphics_view.scale(10, 10)
+
         self.scene = scene.Scene()
         self.graphics_view.setScene(self.scene)
 
@@ -78,6 +82,34 @@ class MainWidget(QtWidgets.QMainWindow):
         # Timer to periodically update car movement
         self.timer = QtCore.QTimer(self)
         self.timer.timeout.connect(self.update_car)
+
+        self.graphics_view.addAction(self.action_add_point)
+        self.graphics_view.addAction(self.action_add_circle)
+        self.graphics_view.addAction(self.action_remove_selected_objects)
+
+    @QtCore.pyqtSlot()
+    def on_action_add_point_triggered(self):
+        pos = self.graphics_view.mapToScene(
+            self.graphics_view.mapFromGlobal(QtGui.QCursor.pos()))
+        self.scene.add_path_point(pos, True)
+
+    @QtCore.pyqtSlot()
+    def on_action_add_circle_triggered(self):
+        pos = self.graphics_view.mapToScene(
+            self.graphics_view.mapFromGlobal(QtGui.QCursor.pos()))
+        self.scene.add_circle((pos.x(), pos.y()),
+                              self.scene.CIRCLE_RADIUS, True)
+
+    @QtCore.pyqtSlot()
+    def on_action_remove_selected_objects_triggered(self):
+        self.scene.remove_selected()
+
+    def wheelEvent_handler(self, event):
+        # Zoom in and out with the mouse wheel
+        factor = 1.1
+        if event.angleDelta().y() < 0:
+            factor = 1 / factor
+        self.graphics_view.scale(factor, factor)
 
     def update_car(self):
         # Move the car based on optimized steering angles

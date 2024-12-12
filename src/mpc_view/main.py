@@ -1,14 +1,14 @@
 import logging
 import sys
 from PyQt5 import QtWidgets
-from mpc_view import main_widget
+from mpc_view import view
 
 
 logging.getLogger(__name__)
 
 
 def main():
-    """Main function
+    """Display of MPC View
     """
     logging.basicConfig(
         level=logging.DEBUG,
@@ -17,8 +17,8 @@ def main():
     logging.getLogger('PyQt5').setLevel(logging.WARNING)
 
     app = QtWidgets.QApplication(sys.argv)
-    view = main_widget.MainWidget()
-    view.show()
+    widget = view.View()
+    widget.show()
     sys.exit(app.exec_())
 
 

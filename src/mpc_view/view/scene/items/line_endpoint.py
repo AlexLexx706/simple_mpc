@@ -3,7 +3,7 @@ from typing import Tuple, Callable
 from PyQt5 import QtCore
 from PyQt5 import QtGui
 from PyQt5 import QtWidgets
-from mpc_view.scene.items.editable_line import EditableLine
+from mpc_view.view.scene.items.editable_line import EditableLine
 LOG = logging.getLogger(__name__)
 
 

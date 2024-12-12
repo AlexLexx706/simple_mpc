@@ -4,9 +4,9 @@ from typing import List, Tuple
 from PyQt5 import QtCore
 from PyQt5 import QtGui
 from PyQt5 import QtWidgets
-from mpc_view.scene.items import car
-from mpc_view.scene.items import line_endpoint
-from mpc_view.scene.items import editable_line
+from mpc_view.view.scene.items import car
+from mpc_view.view.scene.items import line_endpoint
+from mpc_view.view.scene.items import editable_line
 import numpy as np
 from mpc.mpc_casadi import MPCCasadi
 import casadi as ca
@@ -65,20 +65,6 @@ class Scene(QtWidgets.QGraphicsScene):
         self.predicted_path = QtWidgets.QGraphicsPathItem()
         self.predicted_path.setPen(self.PREDICTED_PATH_PEN)
         self.addItem(self.predicted_path)
-
-        # menu for objects manipulations
-        self.widget = None
-        self.menu = QtWidgets.QMenu()
-        self.action_add_point = QtWidgets.QAction("Add path point", self.menu)
-        self.menu.addAction(self.action_add_point)
-
-        self.action_add_circle = QtWidgets.QAction(
-            "Add circle point", self.menu)
-        self.menu.addAction(self.action_add_circle)
-
-        self.action_remove_object = QtWidgets.QAction(
-            "Remove selected objects", self.menu)
-        self.menu.addAction(self.action_remove_object)
 
     def add_circle(self, pos: Tuple[float, float], radius: float, rebuild_mpc: bool):
         """Add circle to the scene
@@ -186,41 +172,6 @@ class Scene(QtWidgets.QGraphicsScene):
         # Draw horizontal grid lines
         for y in range(int(top), int(bottom), self.GRID_SIZE):
             painter.drawLine(left, y, right, y)
-
-    # def mousePressEvent(self, event):
-    #     pos = event.scenePos()
-    #     pos = ca.DM([pos.x(), pos.y()]).T
-    #     path = ca.DM(self.get_path())
-
-    #     xt, he = MPCCasadi.get_track_cost(
-    #         path=path,
-    #         control_point=pos,
-    #         heading=0)
-    #     print(xt, he)
-    #     return super().mousePressEvent(event)
-
-    def contextMenuEvent(self, event: QtWidgets.QGraphicsSceneContextMenuEvent):
-        """Context menu handler
-
-        Args:
-            event (QtWidgets.QGraphicsSceneContextMenuEvent): scene event
-        """
-
-        super().contextMenuEvent(event)
-        if not event.isAccepted():
-            self.widget = event.widget()
-            # Отображение меню в позиции клика
-            pos = event.scenePos()
-            pos = [pos.x(), pos.y()]
-
-            action = self.menu.exec_(event.screenPos())
-
-            if action == self.action_add_point:
-                self.add_path_point(pos, True)
-            elif action == self.action_add_circle:
-                self.add_circle(pos, self.CIRCLE_RADIUS, True)
-            elif action == self.action_remove_object:
-                self.remove_selected()
 
     def add_path_point(self, pos: Tuple[float, float], rebuild_mpc: bool):
         """adding new points to path
