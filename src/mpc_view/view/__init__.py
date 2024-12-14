@@ -4,10 +4,17 @@ import os
 import math
 from PyQt5 import QtWidgets, uic, QtCore, QtGui
 from mpc_view.view import scene
+from mpc_view.view.scene.items import vertex_editor
 
 
 class View(QtWidgets.QFrame):
     DT = 0.1
+    POLYGON_SIZE = [10.0, 10.0]
+    POLYGON_PEN = QtGui.QPen(QtGui.QColor(255, 0, 0), 2)
+    POLYGON_PEN.setCosmetic(True)
+    POLYGON_BRUSH = QtGui.QBrush(
+        QtGui.QColor(255, 0, 0, 100),
+        QtCore.Qt.BrushStyle.SolidPattern)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -85,24 +92,91 @@ class View(QtWidgets.QFrame):
 
         self.graphics_view.addAction(self.action_add_point)
         self.graphics_view.addAction(self.action_add_circle)
-        self.graphics_view.addAction(self.action_remove_selected_objects)
+        self.graphics_view.addAction(self.action_add_polygon)
+        separator = QtWidgets.QAction(self)
+        separator.setSeparator(True)
+        self.graphics_view.addAction(separator)
+        self.graphics_view.addAction(self.action_edit_polygon)
+        self.graphics_view.addAction(self.action_stop_edit_polygon)
+        self.graphics_view.addAction(self.action_remove_selected)
+
+        self.scene.selectionChanged.connect(self.selection_changed)
+
+        self.edited_poligons = []
+
+    def selection_changed(self):
+        for item in self.scene.selectedItems():
+            print(item)
 
     @QtCore.pyqtSlot()
     def on_action_add_point_triggered(self):
         pos = self.graphics_view.mapToScene(
             self.graphics_view.mapFromGlobal(QtGui.QCursor.pos()))
-        self.scene.add_path_point(pos, True)
+
+        self.scene.add_path_point(
+            (pos.x(), pos.y()), True)
 
     @QtCore.pyqtSlot()
     def on_action_add_circle_triggered(self):
         pos = self.graphics_view.mapToScene(
             self.graphics_view.mapFromGlobal(QtGui.QCursor.pos()))
-        self.scene.add_circle((pos.x(), pos.y()),
-                              self.scene.CIRCLE_RADIUS, True)
+        self.scene.add_circle(
+            (pos.x(), pos.y()),
+            self.scene.CIRCLE_RADIUS, True)
 
     @QtCore.pyqtSlot()
-    def on_action_remove_selected_objects_triggered(self):
+    def on_action_remove_selected_triggered(self):
         self.scene.remove_selected()
+
+    @QtCore.pyqtSlot()
+    def on_action_edit_polygon_triggered(self):
+        for polygon in self.scene.selectedItems():
+            if isinstance(polygon, QtWidgets.QGraphicsPolygonItem):
+                # creating of the Set of vertex editors for this polygon
+                if not hasattr(polygon, "control_points"):
+                    control_points = []
+                    polygon.control_points = control_points
+                    for index, point in enumerate(polygon.polygon()):
+                        ve = vertex_editor.VertexEditor(index)
+                        ve.setParentItem(polygon)
+                        ve.setPos(point)
+                        ve.bind(((polygon, index), self.poligon_changed))
+                        control_points.append(ve)
+
+    @QtCore.pyqtSlot()
+    def on_action_stop_edit_polygon_triggered(self):
+        for polygon in self.scene.selectedItems():
+            if isinstance(polygon, QtWidgets.QGraphicsPolygonItem):
+                if hasattr(polygon, "control_points"):
+                    for item in polygon.control_points:
+                        item.setParentItem(None)
+                    delattr(polygon, "control_points")
+
+    def poligon_changed(self, desc, pos):
+        polygon_item, index = desc
+        polygon = polygon_item.polygon()
+        polygon[index] = pos
+        polygon_item.setPolygon(polygon)
+
+    @QtCore.pyqtSlot()
+    def on_action_add_polygon_triggered(self):
+        pos = self.graphics_view.mapToScene(
+            self.graphics_view.mapFromGlobal(QtGui.QCursor.pos()))
+        polygon = QtWidgets.QGraphicsPolygonItem(QtGui.QPolygonF(
+            QtCore.QRectF(
+                0,
+                0,
+                self.POLYGON_SIZE[0],
+                self.POLYGON_SIZE[1])))
+        polygon.setPos(pos)
+        polygon.setPen(self.POLYGON_PEN)
+        polygon.setBrush(self.POLYGON_BRUSH)
+        polygon.setFlags(
+            QtWidgets.QGraphicsItem.ItemIsMovable |
+            QtWidgets.QGraphicsItem.ItemIsSelectable |
+            QtWidgets.QGraphicsItem.ItemSendsGeometryChanges)
+        self.scene.addItem(polygon)
+        polygon.setZValue(0)
 
     def wheelEvent_handler(self, event):
         # Zoom in and out with the mouse wheel

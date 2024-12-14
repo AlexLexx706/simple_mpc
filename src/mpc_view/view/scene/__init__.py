@@ -218,6 +218,8 @@ class Scene(QtWidgets.QGraphicsScene):
             # remove end-point of line
             elif isinstance(obj, line_endpoint.LineEndpoint):
                 self.remove_endpoint(obj)
+            elif isinstance(obj, QtWidgets.QGraphicsPolygonItem):
+                self.removeItem(obj)
 
     def remove_endpoint(self, endpoint: line_endpoint.LineEndpoint) -> None:
         """Removing of endpoint
@@ -304,7 +306,7 @@ class Scene(QtWidgets.QGraphicsScene):
 
     @staticmethod
     def remove_line_from_endpoint(endpoint: line_endpoint.LineEndpoint, line: editable_line.EditableLine):
-        """removeing of line from endpoint
+        """removing of line from endpoint
         Args:
             endpoint (line_endpoint.LineEndpoint): endpoint
             line (editable_line.EditableLine): line

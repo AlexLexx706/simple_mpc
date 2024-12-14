@@ -358,12 +358,30 @@
     <string>Adding a circular constraint</string>
    </property>
   </action>
-  <action name="action_remove_selected_objects">
+  <action name="action_remove_selected">
    <property name="text">
-    <string>Remove selected objects</string>
+    <string>Remove selected</string>
    </property>
    <property name="toolTip">
     <string>Remove selected objects</string>
+   </property>
+   <property name="shortcut">
+    <string>Del</string>
+   </property>
+  </action>
+  <action name="action_add_polygon">
+   <property name="text">
+    <string>Add polygon</string>
+   </property>
+  </action>
+  <action name="action_edit_polygon">
+   <property name="text">
+    <string>Edit polygon</string>
+   </property>
+  </action>
+  <action name="action_stop_edit_polygon">
+   <property name="text">
+    <string>Stop edit polygon</string>
    </property>
   </action>
  </widget>
