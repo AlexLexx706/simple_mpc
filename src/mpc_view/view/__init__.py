@@ -5,6 +5,8 @@ import math
 from PyQt5 import QtWidgets, uic, QtCore, QtGui
 from mpc_view.view import scene
 from mpc_view.view.scene.items import vertex_editor
+from mpc_view.view.scene.items import car
+
 
 
 class View(QtWidgets.QFrame):
@@ -100,14 +102,6 @@ class View(QtWidgets.QFrame):
         self.graphics_view.addAction(self.action_stop_edit_item)
         self.graphics_view.addAction(self.action_remove_selected)
 
-        self.scene.selectionChanged.connect(self.selection_changed)
-
-        self.edited_poligons = []
-
-    def selection_changed(self):
-        for item in self.scene.selectedItems():
-            print(item)
-
     @QtCore.pyqtSlot()
     def on_action_add_point_triggered(self):
         pos = self.graphics_view.mapToScene(
@@ -150,6 +144,18 @@ class View(QtWidgets.QFrame):
                     circle.control_point.setParentItem(circle)
                     circle.control_point.setPos(0, circle.rect().top())
                     circle.control_point.bind((circle, self.circle_changed))
+            elif isinstance(item, car.CarModel):
+                car_item = item
+                if not hasattr(car_item, 'control_point'):
+                    car_pos = car_item.pos()
+                    car_angle = math.radians(car_item.rotation())
+                    pos = [
+                        car_pos.x() + car_item.RADIUS * math.cos(car_angle),
+                        car_pos.y() + car_item.RADIUS * math.sin(car_angle)]
+                    car_item.control_point = vertex_editor.VertexEditor('R')
+                    car_item.control_point.setPos(pos[0], pos[1])
+                    car_item.control_point.bind((car_item, self.car_rotation_changed))
+                    self.scene.addItem(car_item.control_point)
 
     @QtCore.pyqtSlot()
     def on_action_stop_edit_item_triggered(self):
@@ -165,6 +171,11 @@ class View(QtWidgets.QFrame):
                 if hasattr(circle, "control_point"):
                     circle.control_point.setParentItem(None)
                     del circle.control_point
+            elif isinstance(item, car.CarModel):
+                car_item = item
+                if hasattr(car_item, "control_point"):
+                    self.scene.removeItem(car_item.control_point)
+                    del car_item.control_point
 
     def polygon_changed(self, desc, pos):
         polygon_item, index = desc
@@ -180,6 +191,10 @@ class View(QtWidgets.QFrame):
                 -radius,
                 radius * 2,
                 radius * 2))
+    def car_rotation_changed(self, car, pos):
+        vector = pos - car.pos()
+        angle = math.degrees(math.atan2(vector.y(), vector.x()))
+        car.setRotation(angle)
 
     @QtCore.pyqtSlot()
     def on_action_add_polygon_triggered(self):
