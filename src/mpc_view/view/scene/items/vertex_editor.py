@@ -16,12 +16,12 @@ class VertexEditor(QtWidgets.QGraphicsRectItem):
     FONT = QtGui.QFont("Times", 16, QtGui.QFont.Bold)
     TEXT_OFFSET = QtCore.QPointF(-10, -30)
 
-    def __init__(self, index):
-        """CLass used fro control line end point
+    def __init__(self, str_desc:str):
+        """Class used fro control line end point
         """
         super().__init__()
         # text adding
-        self.text = QtWidgets.QGraphicsSimpleTextItem(f'{index}', self)
+        self.text = QtWidgets.QGraphicsSimpleTextItem(str_desc, self)
         self.text.setFont(self.FONT)
         self.text.setFlag(
             QtWidgets.QGraphicsItem.ItemIgnoresTransformations, True)

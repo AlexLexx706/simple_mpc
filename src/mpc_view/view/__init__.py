@@ -96,8 +96,8 @@ class View(QtWidgets.QFrame):
         separator = QtWidgets.QAction(self)
         separator.setSeparator(True)
         self.graphics_view.addAction(separator)
-        self.graphics_view.addAction(self.action_edit_polygon)
-        self.graphics_view.addAction(self.action_stop_edit_polygon)
+        self.graphics_view.addAction(self.action_edit_item)
+        self.graphics_view.addAction(self.action_stop_edit_item)
         self.graphics_view.addAction(self.action_remove_selected)
 
         self.scene.selectionChanged.connect(self.selection_changed)
@@ -129,34 +129,57 @@ class View(QtWidgets.QFrame):
         self.scene.remove_selected()
 
     @QtCore.pyqtSlot()
-    def on_action_edit_polygon_triggered(self):
-        for polygon in self.scene.selectedItems():
-            if isinstance(polygon, QtWidgets.QGraphicsPolygonItem):
+    def on_action_edit_item_triggered(self):
+        for item in self.scene.selectedItems():
+            if isinstance(item, QtWidgets.QGraphicsPolygonItem):
+                polygon = item
                 # creating of the Set of vertex editors for this polygon
                 if not hasattr(polygon, "control_points"):
                     control_points = []
                     polygon.control_points = control_points
                     for index, point in enumerate(polygon.polygon()):
-                        ve = vertex_editor.VertexEditor(index)
+                        ve = vertex_editor.VertexEditor(str(index))
                         ve.setParentItem(polygon)
                         ve.setPos(point)
-                        ve.bind(((polygon, index), self.poligon_changed))
+                        ve.bind(((polygon, index), self.polygon_changed))
                         control_points.append(ve)
+            elif isinstance(item, QtWidgets.QGraphicsEllipseItem):
+                circle = item
+                if not hasattr(circle, 'control_point'):
+                    circle.control_point = vertex_editor.VertexEditor('R')
+                    circle.control_point.setParentItem(circle)
+                    circle.control_point.setPos(0, circle.rect().top())
+                    circle.control_point.bind((circle, self.circle_changed))
 
     @QtCore.pyqtSlot()
-    def on_action_stop_edit_polygon_triggered(self):
-        for polygon in self.scene.selectedItems():
-            if isinstance(polygon, QtWidgets.QGraphicsPolygonItem):
+    def on_action_stop_edit_item_triggered(self):
+        for item in self.scene.selectedItems():
+            if isinstance(item, QtWidgets.QGraphicsPolygonItem):
+                polygon = item
                 if hasattr(polygon, "control_points"):
                     for item in polygon.control_points:
                         item.setParentItem(None)
-                    delattr(polygon, "control_points")
+                    del polygon.control_points
+            elif isinstance(item, QtWidgets.QGraphicsEllipseItem):
+                circle = item
+                if hasattr(circle, "control_point"):
+                    circle.control_point.setParentItem(None)
+                    del circle.control_point
 
-    def poligon_changed(self, desc, pos):
+    def polygon_changed(self, desc, pos):
         polygon_item, index = desc
         polygon = polygon_item.polygon()
         polygon[index] = pos
         polygon_item.setPolygon(polygon)
+
+    def circle_changed(self, circle, pos):
+        radius = math.sqrt(pos.x()**2 + pos.y()**2)
+        circle.setRect(
+            QtCore.QRectF(
+                -radius,
+                -radius,
+                radius * 2,
+                radius * 2))
 
     @QtCore.pyqtSlot()
     def on_action_add_polygon_triggered(self):
