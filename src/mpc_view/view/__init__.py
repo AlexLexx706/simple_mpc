@@ -8,7 +8,6 @@ from mpc_view.view.scene.items import vertex_editor
 from mpc_view.view.scene.items import car
 
 
-
 class View(QtWidgets.QFrame):
     DT = 0.1
     POLYGON_SIZE = [10.0, 10.0]
@@ -99,7 +98,7 @@ class View(QtWidgets.QFrame):
         separator.setSeparator(True)
         self.graphics_view.addAction(separator)
         self.graphics_view.addAction(self.action_edit_item)
-        self.graphics_view.addAction(self.action_stop_edit_item)
+        self.graphics_view.addAction(self.action_stop_edit_all)
         self.graphics_view.addAction(self.action_remove_selected)
 
     @QtCore.pyqtSlot()
@@ -124,6 +123,7 @@ class View(QtWidgets.QFrame):
 
     @QtCore.pyqtSlot()
     def on_action_edit_item_triggered(self):
+        self.stop_edit_all()
         for item in self.scene.selectedItems():
             if isinstance(item, QtWidgets.QGraphicsPolygonItem):
                 polygon = item
@@ -131,35 +131,49 @@ class View(QtWidgets.QFrame):
                 if not hasattr(polygon, "control_points"):
                     control_points = []
                     polygon.control_points = control_points
-                    for index, point in enumerate(polygon.polygon()):
+
+                    polygon_data = polygon.polygon()
+                    ve = vertex_editor.VertexEditor(str(0))
+                    ve.setParentItem(polygon)
+                    ve.setPos(polygon_data[0])
+                    ve.bind(
+                        ((polygon, [0, len(polygon_data) - 1]), self.polygon_changed))
+                    control_points.append(ve)
+
+                    for index, point in enumerate(polygon_data[1:-1]):
+                        index += 1
                         ve = vertex_editor.VertexEditor(str(index))
                         ve.setParentItem(polygon)
                         ve.setPos(point)
-                        ve.bind(((polygon, index), self.polygon_changed))
+                        ve.bind(((polygon, [index, ]), self.polygon_changed))
                         control_points.append(ve)
             elif isinstance(item, QtWidgets.QGraphicsEllipseItem):
                 circle = item
-                if not hasattr(circle, 'control_point'):
-                    circle.control_point = vertex_editor.VertexEditor('R')
-                    circle.control_point.setParentItem(circle)
-                    circle.control_point.setPos(0, circle.rect().top())
-                    circle.control_point.bind((circle, self.circle_changed))
+                if not hasattr(circle, 'control_points'):
+                    circle.control_points = vertex_editor.VertexEditor('R')
+                    circle.control_points.setParentItem(circle)
+                    circle.control_points.setPos(0, circle.rect().top())
+                    circle.control_points.bind((circle, self.circle_changed))
             elif isinstance(item, car.CarModel):
                 car_item = item
-                if not hasattr(car_item, 'control_point'):
+                if not hasattr(car_item, 'control_points'):
                     car_pos = car_item.pos()
                     car_angle = math.radians(car_item.rotation())
                     pos = [
                         car_pos.x() + car_item.RADIUS * math.cos(car_angle),
                         car_pos.y() + car_item.RADIUS * math.sin(car_angle)]
-                    car_item.control_point = vertex_editor.VertexEditor('R')
-                    car_item.control_point.setPos(pos[0], pos[1])
-                    car_item.control_point.bind((car_item, self.car_rotation_changed))
-                    self.scene.addItem(car_item.control_point)
+                    car_item.control_points = vertex_editor.VertexEditor('R')
+                    car_item.control_points.setPos(pos[0], pos[1])
+                    car_item.control_points.bind(
+                        (car_item, self.car_rotation_changed))
+                    self.scene.addItem(car_item.control_points)
 
     @QtCore.pyqtSlot()
-    def on_action_stop_edit_item_triggered(self):
-        for item in self.scene.selectedItems():
+    def on_action_stop_edit_all_triggered(self):
+        self.stop_edit_all()
+
+    def stop_edit_all(self):
+        for item in self.scene.items():
             if isinstance(item, QtWidgets.QGraphicsPolygonItem):
                 polygon = item
                 if hasattr(polygon, "control_points"):
@@ -168,19 +182,21 @@ class View(QtWidgets.QFrame):
                     del polygon.control_points
             elif isinstance(item, QtWidgets.QGraphicsEllipseItem):
                 circle = item
-                if hasattr(circle, "control_point"):
-                    circle.control_point.setParentItem(None)
-                    del circle.control_point
+                if hasattr(circle, "control_points"):
+                    circle.control_points.setParentItem(None)
+                    del circle.control_points
             elif isinstance(item, car.CarModel):
                 car_item = item
-                if hasattr(car_item, "control_point"):
-                    self.scene.removeItem(car_item.control_point)
-                    del car_item.control_point
+                if hasattr(car_item, "control_points"):
+                    self.scene.removeItem(car_item.control_points)
+                    del car_item.control_points
 
     def polygon_changed(self, desc, pos):
-        polygon_item, index = desc
+        polygon_item, indexs = desc
         polygon = polygon_item.polygon()
-        polygon[index] = pos
+
+        for index in indexs:
+            polygon[index] = pos
         polygon_item.setPolygon(polygon)
 
     def circle_changed(self, circle, pos):
@@ -191,6 +207,7 @@ class View(QtWidgets.QFrame):
                 -radius,
                 radius * 2,
                 radius * 2))
+
     def car_rotation_changed(self, car, pos):
         vector = pos - car.pos()
         angle = math.degrees(math.atan2(vector.y(), vector.x()))

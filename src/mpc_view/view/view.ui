@@ -391,9 +391,9 @@
     <string>Ctrl+E</string>
    </property>
   </action>
-  <action name="action_stop_edit_item">
+  <action name="action_stop_edit_all">
    <property name="text">
-    <string>Stop edit item</string>
+    <string>Stop edit all</string>
    </property>
    <property name="shortcut">
     <string>Ctrl+S</string>
