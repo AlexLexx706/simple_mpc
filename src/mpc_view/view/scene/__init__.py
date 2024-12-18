@@ -7,6 +7,7 @@ from PyQt5 import QtWidgets
 from mpc_view.view.scene.items import car
 from mpc_view.view.scene.items import line_endpoint
 from mpc_view.view.scene.items import editable_line
+from mpc_view.view.scene.items import circle
 import numpy as np
 from mpc.mpc_casadi import MPCCasadi
 import casadi as ca
@@ -16,8 +17,7 @@ LOG = logging.getLogger(__name__)
 
 
 class Scene(QtWidgets.QGraphicsScene):
-    LINE_PEN = QtGui.QPen(QtGui.QColor(0, 0, 0), 2)
-    LINE_PEN.setCosmetic(True)
+    CURSOR_POS_CHANGED = QtCore.pyqtSignal(object)
 
     GREED_PEN = QtGui.QPen(QtGui.QColor(230, 230, 230), 2)
     GREED_PEN.setCosmetic(True)
@@ -66,6 +66,10 @@ class Scene(QtWidgets.QGraphicsScene):
         self.predicted_path.setPen(self.PREDICTED_PATH_PEN)
         self.addItem(self.predicted_path)
 
+    def mouseMoveEvent(self, mouse_event):
+        self.CURSOR_POS_CHANGED.emit(mouse_event.scenePos())
+        return super().mouseMoveEvent(mouse_event)
+
     def add_circle(self, pos: Tuple[float, float], radius: float, rebuild_mpc: bool):
         """Add circle to the scene
         Args:
@@ -73,22 +77,18 @@ class Scene(QtWidgets.QGraphicsScene):
             radius (float): radius
             rebuild_mpc (bool): true - rebuild mpc, false - not
         """
-        circle = self.addEllipse(
-            QtCore.QRectF(
-                -radius,
-                -radius,
-                radius * 2,
-                radius * 2),
-            self.LINE_PEN)
-        circle.setPos(pos[0], pos[1])
-        circle.setFlags(
-            QtWidgets.QGraphicsRectItem.ItemIsMovable
-            | QtWidgets.QGraphicsRectItem.ItemIsSelectable
-            | QtWidgets.QGraphicsRectItem.ItemSendsGeometryChanges)
-        self.circles.append(circle)
+        item = circle.Circle(QtCore.QRectF(
+            -radius,
+            -radius,
+            radius * 2,
+            radius * 2))
+        self.addItem(item)
+        item.setPos(pos[0], pos[1])
+        self.circles.append(item)
 
         if rebuild_mpc:
             self.rebuild_mpc()
+        return item
 
     def add_path(self, points: List[Tuple[float, float]]):
         """Add editable path to the scene

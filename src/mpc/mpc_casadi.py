@@ -4,6 +4,84 @@ import casadi as ca
 import math
 
 
+def minimum_distance_between_polygons(
+        poly_1: List[Tuple[float, float]], poly_2: List[Tuple[float, float]]) -> float:
+    """return minimum distance between polygons
+
+    Args:
+        poly_1 (List[Tuple[float, float]]): set of point first polygon
+        poly_2 (List[Tuple[float, float]]): set of point second polygon
+
+    Returns:
+        float: distance
+    """
+    def edge_normals(polygon):
+        """Get edge normals for a polygon."""
+        normals = []
+        n = polygon.shape[0]
+        for i in range(n):
+            p1 = polygon[i, :]
+            p2 = polygon[(i + 1) % n, :]
+            edge = p2 - p1
+            normal = ca.horzcat(edge[1], -edge[0]) / ca.norm_2(edge)
+            normals.append(normal)
+        return normals
+
+    def project_polygon(polygon, axis):
+        """Project a polygon onto an axis."""
+        dots = axis @ polygon.T
+        return ca.mmin(dots), ca.mmax(dots)
+
+    def distance_along_axis(polygon1, polygon2, axis):
+        """Compute distance along an axis."""
+        min1, max1 = project_polygon(polygon1, axis)
+        min2, max2 = project_polygon(polygon2, axis)
+        return ca.mmax(ca.vertcat(min1, min2)) - ca.mmin(ca.vertcat(max1, max2))
+
+    # Combine all edge normals from both polygons
+    axes = edge_normals(poly_1) + edge_normals(poly_2)
+    return ca.mmax(ca.vertcat(*(
+        distance_along_axis(poly_1, poly_2, axis) for axis in axes)))
+
+
+def minimum_distance_between_polygon_and_circle(
+        polygon: List[Tuple[float, float]],
+        point_c: Tuple[float, float],
+        radius: float) -> float:
+    """return distance between polygon and circle.
+
+    Args:
+        poligon (List[Tuple[float, float]]): points of poligon
+        circle (Tuple[Tuple[float, float], float]): circle description: ((x,y), radius)
+    Return (float): result >= 0 - object not intersected, result < 0 intersected
+    """
+    distances = []
+    results = []
+    for index in range(polygon.shape[0]):
+        point_a = polygon[index, :]
+        point_b = polygon[(index + 1) % polygon.shape[0], :]
+        vec_ba = point_b - point_a
+        norm_ba = ca.horzcat(vec_ba[1], -vec_ba[0]) / ca.norm_2(vec_ba)
+        vec_ca = point_c - point_a
+        proj_ca = (norm_ba @ vec_ca.T) - radius
+        distances.append(proj_ca)
+        results.append((point_a, norm_ba))
+
+    # processing of corners
+    for index, point_normal in enumerate(results):
+        prev_normal = results[index - 1][1]
+        point_a, normal = point_normal
+        vec_ca = point_c - point_a
+        proj_ac_prev_norm = prev_normal @ vec_ca.T
+        proj_ac_norm = normal @ vec_ca.T
+        distance = ca.if_else(
+            ca.logic_or(proj_ac_prev_norm < 0., proj_ac_norm < 0.),
+            -ca.norm_2(vec_ca) - radius,
+            ca.norm_2(vec_ca) - radius)
+        distances.append(distance)
+    return ca.mmax(ca.vertcat(*distances))
+
+
 class MPCCasadi:
     def __init__(
             self,

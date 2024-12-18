@@ -21,5 +21,6 @@ print(f"f_xt:{MPCCasadi.get_track_cost(path, pos, heading)}")
 
 pos = ca.DM([1., 9.5]).T
 print(f"f_xt:{MPCCasadi.get_track_cost(path, pos, heading)}")
+
 # print(f"f_xt:{f_xt(path, pos, heading)}")
 # print(f"f_he:{math.degrees(f_he(path, pos, heading))}")
